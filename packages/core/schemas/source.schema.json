@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/alvanx/i18n-kit/main/packages/core/schemas/source.schema.json",
+  "title": "i18n-kit source catalog",
+  "description": "The authored source-language catalog for one namespace. This file is the source of truth. Everything under the build directory is generated from it.",
+  "type": "object",
+  "required": ["schemaVersion", "namespace", "sourceLocale", "messages"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "description": "Namespace name. Matches the filename without extension."
+    },
+    "sourceLocale": {
+      "type": "string",
+      "description": "BCP 47 tag of the language these messages are written in."
+    },
+    "messages": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*(\\.[a-z][a-z0-9]*(_[a-z0-9]+)*)+$",
+        "description": "Dot-separated key, at least two segments, lowercase snake within a segment. This grammar is chosen so that replacing dots with underscores yields a valid Android resource name and a valid Chrome message name."
+      },
+      "additionalProperties": { "$ref": "#/$defs/message" }
+    }
+  },
+  "$defs": {
+    "message": {
+      "type": "object",
+      "required": ["message"],
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ICU MessageFormat text in the source language."
+        },
+        "comment": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What this string is for, where it appears, and who is speaking. Effectively required: it affects translation quality more than model choice does. Not listed in `required` here because the COMMENT_MISSING lint enforces it as a ratchet, an error for new keys and a counted warning for a pre-existing backlog, which a schema cannot express. `i18n add` refuses to create a key without one."
+        },
+        "context": {
+          "enum": [
+            "button",
+            "dialog-title",
+            "heading",
+            "body",
+            "toast",
+            "menu-item",
+            "a11y-label",
+            "error",
+            "empty-state",
+            "placeholder",
+            "notification",
+            "meta-title",
+            "meta-description"
+          ],
+          "description": "Where the string appears. Selects register: imperative for buttons, noun phrase for titles, polite forms for errors."
+        },
+        "class": {
+          "enum": ["ui", "marketing", "seo"],
+          "default": "ui",
+          "description": "How literal the translation must be. 'ui' is faithful with sacred placeholders and hard length limits. 'marketing' permits transcreation: adapted idioms, rewritten headlines, impact over literal wording. 'seo' preserves search intent and keyword prominence."
+        },
+        "placeholders": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$" },
+          "additionalProperties": { "$ref": "#/$defs/placeholder" },
+          "description": "Every argument named in the message. Checked against the parsed ICU: declaring one that does not appear, or omitting one that does, is an error."
+        },
+        "keywords": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "SEO only. The primary keyword must survive into every translation.",
+          "properties": {
+            "primary": { "type": "string", "minLength": 1 },
+            "secondary": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["primary"]
+        },
+        "maxLength": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value"],
+          "properties": {
+            "value": { "type": "integer", "minimum": 1 },
+            "measure": {
+              "enum": ["display-width", "graphemes"],
+              "default": "display-width",
+              "description": "display-width counts East Asian wide characters as two. Measuring string length instead makes every CJK locale look far shorter than it renders."
+            },
+            "appliesTo": {
+              "enum": ["translation", "source", "both"],
+              "default": "translation"
+            }
+          },
+          "description": "A hard constraint the author asserted. Exceeding it is an error, not a warning."
+        },
+        "tier": {
+          "enum": ["normal", "critical"],
+          "default": "normal",
+          "description": "'critical' strings may get a stronger model and a second review pass."
+        },
+        "sensitive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Never send this message, its comment, or its examples to a translation provider. It must be translated by a human."
+        },
+        "targets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Which export targets this message belongs to. Omitted means all enabled targets. Lets one catalog serve platforms that do not share every string."
+        },
+        "deprecated": {
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": false,
+          "required": ["since"],
+          "properties": {
+            "since": { "type": "string", "format": "date" },
+            "removeAfter": { "type": "string", "format": "date" },
+            "reason": { "type": "string" }
+          },
+          "description": "Deprecated keys are skipped by export and retained in translations until removed."
+        }
+      }
+    },
+    "placeholder": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": ["string", "number", "date", "time", "tag"],
+          "description": "'tag' is a rich-text element the runtime maps to a caller-supplied handler."
+        },
+        "example": {
+          "description": "A realistic value. Used to render the message during validation and to give a translator concrete context. Never put real personal data here."
+        },
+        "desc": {
+          "type": "string",
+          "description": "What this argument means. A device name reads very differently from a file name."
+        },
+        "doNotTranslate": {
+          "type": "boolean",
+          "default": false,
+          "description": "The substituted value is a proper noun or user-chosen text that must not be altered or transliterated."
+        }
+      }
+    }
+  }
+}

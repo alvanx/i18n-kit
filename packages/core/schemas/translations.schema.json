@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/alvanx/i18n-kit/main/packages/core/schemas/translations.schema.json",
+  "title": "i18n-kit translation catalog",
+  "description": "Translations for one locale and one namespace. Written by the tool and by humans. A failed translation is recorded with no message field at all, never with source-language text standing in.",
+  "type": "object",
+  "required": ["schemaVersion", "locale", "namespace", "messages"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "locale": { "type": "string", "description": "BCP 47 tag." },
+    "namespace": { "type": "string", "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$" },
+    "messages": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/translation" }
+    }
+  },
+  "$defs": {
+    "translation": {
+      "type": "object",
+      "required": ["origin", "review", "sourceHash", "contextHash"],
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The translated ICU text. ABSENT when the last attempt failed. Absence is the honest state; source-language text here would make a missing-key check pass while hiding the failure."
+        },
+        "origin": {
+          "enum": ["machine", "human"],
+          "description": "Who wrote the current text. Set to 'human' automatically when the text stops matching contentHash, which is how a hand edit is detected without anyone remembering to set a flag."
+        },
+        "review": {
+          "enum": ["none", "reviewed", "approved"],
+          "default": "none",
+          "description": "'approved' is stricter than a human origin: exempt even from context-change churn. Intended for signed-off copy."
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^s1:[0-9a-f]{16,64}$",
+          "description": "Over the NORMALIZED source message plus its argument contract. A mismatch means this translation may be wrong."
+        },
+        "contextHash": {
+          "type": "string",
+          "pattern": "^c1:[0-9a-f]{16,64}$",
+          "description": "Over the NORMALIZED comment, context, class, placeholder descriptions and examples, and maxLength. A mismatch means this translation may be lower quality, which is never a reason to fail a build."
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^h1:[0-9a-f]{16,64}$",
+          "description": "Over the EXACT bytes of the translated message. Deliberately not normalized: a human's typographic correction is precisely the edit normalization would erase, and detecting it is the whole point."
+        },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "attempt": {
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": false,
+          "required": ["status", "reason", "at"],
+          "properties": {
+            "status": { "const": "failed" },
+            "reason": { "type": "string", "description": "The validation rule that rejected the response, and the detail." },
+            "at": { "type": "string", "format": "date" }
+          }
+        },
+        "note": {
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": {
+              "enum": ["ambiguous", "idiom", "cultural", "untranslatable-wordplay"],
+              "description": "Raised by the model during translation. A cultural reference that does not travel is exactly the problem no static check can find."
+            },
+            "text": { "type": "string" }
+          }
+        },
+        "qa": {
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": false,
+          "required": ["at", "promptVersion", "findings"],
+          "description": "Results of an `i18n qa` review. Advisory only: findings are never applied automatically, because doing so would overwrite text including human text.",
+          "properties": {
+            "at": { "type": "string", "format": "date" },
+            "promptVersion": { "type": "integer" },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["category", "severity", "detail"],
+                "additionalProperties": false,
+                "properties": {
+                  "category": {
+                    "enum": [
+                      "fluency",
+                      "terminology",
+                      "grammar",
+                      "missing-segment",
+                      "formatting",
+                      "unnatural-phrasing",
+                      "cultural",
+                      "tone",
+                      "keyword-loss"
+                    ]
+                  },
+                  "severity": { "enum": ["info", "warn", "error"] },
+                  "detail": { "type": "string" },
+                  "suggestion": {
+                    "type": "string",
+                    "description": "Proposed replacement text. Applying it is a separate, explicit human action."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["provider", "model", "promptVersion", "at"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "promptVersion": { "type": "integer" },
+        "at": {
+          "type": "string",
+          "format": "date",
+          "description": "A date, not a timestamp, and restamped only when the message actually changes. Keeps an audit trail without churning diffs on every run."
+        },
+        "runId": { "type": "string" }
+      },
+      "description": "Model and prompt version are recorded but deliberately NOT hashed. Hashing them would make one prompt tweak silently rebill the entire catalog. Regenerating after a model change is an explicit command."
+    }
+  }
+}

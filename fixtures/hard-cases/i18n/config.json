@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../packages/core/schemas/config.schema.json",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "locales": {
+    "required": ["de", "ru", "ar"],
+    "optional": ["ja", "zh-Hans"]
+  },
+  "fallback": {
+    "zh-Hans": ["zh-Hans", "en"]
+  },
+  "targets": {
+    "web": {
+      "adapter": "web"
+    }
+  },
+  "policy": {
+    "zeroCase": "exact-match"
+  }
+}

@@ -1,0 +1,39 @@
+# Validate the catalog on every pull request.
+#
+# This workflow deliberately has NO access to any API key. Checking a catalog is
+# entirely local work, which is what lets it run on a pull request from a fork,
+# where repository secrets are unavailable. Do not add a translation step here:
+# it would fail for every outside contributor. See i18n-translate.yml.
+
+name: i18n check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The comment ratchet compares against the merge base, so it needs
+          # more than a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check catalogs
+        run: >-
+          npx i18n check
+          --since ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+          --report github

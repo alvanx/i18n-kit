@@ -1,0 +1,26 @@
+{
+  "name": "@i18n-kit/core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Catalog schema, validation, hashing, key lifecycle, and deterministic export for i18n-kit. No network.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "i18n": "./bin/i18n.mjs"
+  },
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./schemas/*": "./schemas/*"
+  },
+  "files": [
+    "src",
+    "bin",
+    "schemas"
+  ],
+  "dependencies": {
+    "@formatjs/icu-messageformat-parser": "^2.11.2"
+  }
+}

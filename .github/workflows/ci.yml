@@ -1,0 +1,42 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor and the current release. The floor matters because
+        # Intl.Segmenter and Intl.PluralRules behaviour is what the plural and
+        # width logic rests on, and those move between Node versions.
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  golden:
+    # Golden files must be regenerated deliberately, never by CI. This job only
+    # proves the committed ones still match, which is the whole point of them.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Golden files must not have changed
+        run: |
+          if ! git diff --quiet -- fixtures/; then
+            echo "::error::Golden files changed. Run UPDATE_GOLDEN=1 npm test locally, read the diff, and commit it."
+            git diff -- fixtures/
+            exit 1
+          fi

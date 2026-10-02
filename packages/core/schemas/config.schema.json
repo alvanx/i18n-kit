@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/alvanx/i18n-kit/main/packages/core/schemas/config.schema.json",
+  "title": "i18n-kit config",
+  "type": "object",
+  "required": ["schemaVersion", "sourceLocale"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "sourceLocale": { "type": "string" },
+    "locales": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Both lists may be empty. Authoring source strings before committing to any target language is a normal state, and check still validates the source.",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "A missing string here fails check. These are the languages you have committed to shipping."
+        },
+        "optional": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "A missing string here warns and falls back at runtime. This is what lets a language ship gradually without blocking the build."
+        }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "description": "Explicit ordered fallback chain per locale, e.g. \"pt-BR\": [\"pt-BR\", \"pt\", \"en\"]. Never inferred: whether Brazilian Portuguese falls back to European Portuguese is a project decision, not a fact about the language."
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "default": "i18n/source" },
+        "translations": { "type": "string", "default": "i18n/translations" },
+        "glossary": { "type": "string", "default": "i18n/glossary.json" },
+        "style": { "type": "string", "default": "i18n/style.md" },
+        "audit": { "type": "string", "default": "i18n/audit.log" },
+        "out": { "type": "string", "default": "build/i18n" }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Export targets. The key is the target name used in a message's targets array.",
+      "additionalProperties": { "$ref": "#/$defs/target" }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "committed": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, check asserts that committed generated output matches a fresh export, catching a merge that updated the catalog but not the artifacts."
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultClass": { "enum": ["ui", "marketing", "seo"], "default": "ui" },
+        "zeroCase": {
+          "enum": ["separate-key", "exact-match"],
+          "default": "separate-key",
+          "description": "How 'no items' is expressed. 'separate-key' keeps it out of the plural entirely, which every target can represent. 'exact-match' permits =0, which Android and Apple cannot express and which therefore fails export for those targets."
+        },
+        "placeholderExamples": {
+          "enum": ["required", "optional", "forbidden"],
+          "default": "optional",
+          "description": "Examples are the likeliest place for real personal data to leak into a provider request. Set to forbidden if that risk is unacceptable."
+        },
+        "expansionBudget": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "description": "Warning threshold as a ratio of source display width, keyed by source length bucket. Defaults slide from 3.0 for very short strings to 1.3 for long ones, because short strings legitimately expand far more."
+        },
+        "localeExpansionOverride": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "description": "Per-locale multiplier for languages that reliably run long, e.g. { \"de\": 1.2 }."
+        }
+      }
+    },
+    "severity": {
+      "type": "object",
+      "additionalProperties": { "enum": ["error", "warn", "info", "off"] },
+      "description": "Per-rule overrides, keyed by rule code. A project may RAISE a warning to an error. Lowering an error is rejected by the loader: the error list is the set of things that break at runtime or ship visibly wrong text."
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Used only by the translate package. The core CLI never reads it.",
+      "properties": {
+        "id": { "type": "string", "default": "anthropic" },
+        "model": { "type": "string" },
+        "promptVersion": { "type": "integer", "default": 1 },
+        "batchSize": { "type": "integer", "default": 25, "maximum": 40 },
+        "concurrency": { "type": "integer", "default": 4 },
+        "maxSpendUsd": { "type": "number" },
+        "confirmAboveUsd": { "type": "number", "default": 1 },
+        "dataRetentionAcknowledged": {
+          "type": "boolean",
+          "default": false,
+          "description": "Must be true before the first network run. Catalog text is sent to a third party; entries marked sensitive are excluded."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "required": ["adapter"],
+      "additionalProperties": false,
+      "properties": {
+        "adapter": { "enum": ["web", "chrome", "android", "apple"] },
+        "enabled": { "type": "boolean", "default": true },
+        "out": { "type": "string", "description": "Overrides paths.out for this target." },
+        "localeMap": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "BCP 47 tag to the platform's own tag. Explicit and never inferred: silently dropping a script subtag breaks Chinese and Serbian. A locale with no mapping, where the target needs one, is an error."
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Adapter-specific. Android takes localeFormat (bcp47 or legacy) and resourcePrefix. Chrome takes pluralStrategy (explode or icu-runtime)."
+        }
+      }
+    }
+  }
+}

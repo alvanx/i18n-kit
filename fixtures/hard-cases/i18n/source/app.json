@@ -1,0 +1,107 @@
+{
+  "$schema": "../../../../packages/core/schemas/source.schema.json",
+  "schemaVersion": 1,
+  "namespace": "app",
+  "sourceLocale": "en",
+  "messages": {
+    "cart.item_count": {
+      "message": "{count, plural, =0 {Your cart is empty} one {# item} other {# items}}",
+      "comment": "Cart summary line in the header. The zero case is written with =0 rather than a zero category, because English has no CLDR zero form.",
+      "context": "body",
+      "placeholders": {
+        "count": { "type": "number", "example": 3, "desc": "Items currently in the cart." }
+      }
+    },
+    "order.mixed_plural": {
+      "message": "Ship {count, plural, one {# parcel} other {# parcels}} to {city} by {when, date, medium}",
+      "comment": "Shipping confirmation. A plural sitting alongside other arguments, which is the case native formats struggle with.",
+      "context": "body",
+      "placeholders": {
+        "count": { "type": "number", "example": 2, "desc": "Parcels in this shipment." },
+        "city": { "type": "string", "example": "Hamburg", "desc": "Destination city, already localized upstream." },
+        "when": { "type": "date", "example": "2026-09-01", "desc": "Estimated arrival." }
+      }
+    },
+    "order.nested": {
+      "message": "{status, select, shipped {{count, plural, one {# parcel is} other {# parcels are}} on the way} pending {Waiting on payment} other {Something went wrong}}",
+      "comment": "Order status line. A plural nested inside a select, to prove nesting survives every transform.",
+      "context": "body",
+      "placeholders": {
+        "status": { "type": "string", "example": "shipped", "desc": "One of shipped, pending, or anything else." },
+        "count": { "type": "number", "example": 2, "desc": "Parcels in this order." }
+      }
+    },
+    "leaderboard.rank": {
+      "message": "You finished {place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "comment": "Result line after a race. Ordinal plurals, which several export formats cannot represent at all.",
+      "context": "body",
+      "placeholders": {
+        "place": { "type": "number", "example": 3, "desc": "Finishing position." }
+      }
+    },
+    "chat.others": {
+      "message": "{name} and {count, plural, offset:1 one {# other} other {# others}} replied",
+      "comment": "Thread summary. Uses a plural offset so the named person is not counted twice.",
+      "context": "body",
+      "placeholders": {
+        "name": { "type": "string", "example": "Sam", "desc": "First replier's display name.", "doNotTranslate": true },
+        "count": { "type": "number", "example": 3, "desc": "Total repliers, including the named one." }
+      }
+    },
+    "legal.terms": {
+      "message": "Read the <link>terms of service</link> and our <b>privacy notice</b>",
+      "comment": "Footer line. Rich-text tags become render hooks the caller supplies.",
+      "context": "body",
+      "placeholders": {
+        "link": { "type": "tag", "desc": "Wraps the terms link." },
+        "b": { "type": "tag", "desc": "Bold emphasis." }
+      }
+    },
+    "profile.repeat": {
+      "message": "{name} invited you. Say hi to {name}!",
+      "comment": "Invite banner. The same argument twice, which positional formats must map to one index.",
+      "context": "toast",
+      "placeholders": {
+        "name": { "type": "string", "example": "Sam", "desc": "Inviter's display name.", "doNotTranslate": true }
+      }
+    },
+    "device.sent_to": {
+      "message": "Sent to {device}",
+      "comment": "Confirmation toast. The device name is user-chosen and can be in any script, which is what makes bidi isolation matter.",
+      "context": "toast",
+      "placeholders": {
+        "device": { "type": "string", "example": "Ben's phone", "desc": "User-chosen device name.", "doNotTranslate": true }
+      },
+      "maxLength": { "value": 40, "measure": "display-width", "appliesTo": "translation" }
+    },
+    "nav.save": {
+      "message": "Save",
+      "comment": "Toolbar button. Imperative, and short enough that translations will run well past it.",
+      "context": "button",
+      "maxLength": { "value": 12, "measure": "display-width" }
+    },
+    "marketing.headline": {
+      "message": "Your tabs, everywhere you are",
+      "comment": "Landing page hero. Rewrite for local readability rather than translating word for word.",
+      "context": "heading",
+      "class": "marketing"
+    },
+    "seo.home_title": {
+      "message": "Send browser tabs between your devices instantly",
+      "comment": "Home page title tag. Keep the primary keyword prominent and stay under the length limit.",
+      "context": "meta-title",
+      "class": "seo",
+      "keywords": { "primary": "send browser tabs", "secondary": ["between devices", "sync tabs"] },
+      "maxLength": { "value": 60, "measure": "display-width" }
+    },
+    "billing.receipt": {
+      "message": "Charged {amount, number, ::currency/EUR} on {when, date, short}",
+      "comment": "Receipt line. Number and date skeletons are formatted by the runtime, not baked into the catalog.",
+      "context": "body",
+      "placeholders": {
+        "amount": { "type": "number", "example": 12.5, "desc": "Amount charged." },
+        "when": { "type": "date", "example": "2026-08-17", "desc": "Charge date." }
+      }
+    }
+  }
+}

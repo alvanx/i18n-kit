@@ -1,0 +1,5 @@
+node_modules/
+build/
+i18n/.run/
+*.log
+.DS_Store

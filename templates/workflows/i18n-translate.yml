@@ -1,0 +1,79 @@
+# Fill translation gaps and open a pull request with the result.
+#
+# Separate from i18n-check.yml on purpose, for two reasons.
+#
+# Fork pull requests cannot read repository secrets, so a workflow that needs an
+# API key would fail for every outside contributor. Splitting keeps the check
+# that everyone needs free of the secret that only maintainers have.
+#
+# It opens a pull request rather than pushing. Every machine-written translation
+# then gets a human diff before it lands, which is the last line of defence
+# behind the tool's own validation.
+#
+# Do NOT switch this to pull_request_target to work around the fork
+# restriction. That runs untrusted code with the API key in scope.
+
+name: i18n translate
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_spend_usd:
+        description: Hard ceiling for this run
+        required: false
+        default: "5"
+  push:
+    branches: [main]
+    paths:
+      - "i18n/source/**"
+      - "i18n/glossary.json"
+      - "i18n/style.md"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Two runs translating the same keys would conflict in the same files.
+  group: i18n-translate
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Estimate first
+        run: npx i18n translate --dry-run
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Translate
+        run: >-
+          npx i18n translate
+          --max-spend ${{ github.event.inputs.max_spend_usd || '5' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Export
+        run: npx i18n export
+
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: i18n/translations
+          title: "i18n: fill translation gaps"
+          commit-message: "i18n: fill translation gaps"
+          body: |
+            Machine translations for strings that were new or whose source changed.
+
+            Human-written translations were not touched. Anything this run could
+            not validate was recorded as a failure with no text rather than
+            guessed at, so review the `i18n check` output before merging.

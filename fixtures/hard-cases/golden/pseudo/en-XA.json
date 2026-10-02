@@ -1,0 +1,17 @@
+{
+  "locale": "en-XA",
+  "messages": {
+    "billing.receipt": "⟦Çĥáŕĝéð  ····{amount, number, ::currency/EUR} óñ  ··{when, date, short}⟧",
+    "cart.item_count": "⟦{count, plural, =0 {Ýóúŕ çáŕţ íš éɱþţý ········} one {# íţéɱ ··} other {# íţéɱš ···}}⟧",
+    "chat.others": "⟦{name} áñð  ··{count, plural, offset:1 one {# óţĥéŕ ···} other {# óţĥéŕš ···}} ŕéþłíéð ····⟧",
+    "device.sent_to": "⟦Šéñţ ţó  ····{device}⟧",
+    "leaderboard.rank": "⟦Ýóú ƒíñíšĥéð  ······{place, selectordinal, one {#šţ ·} two {#ñð ·} few {#ŕð ·} other {#ţĥ ·}}⟧",
+    "legal.terms": "⟦Ŕéáð ţĥé  ····<link>ţéŕɱš óƒ šéŕṽíçé ·······</link> áñð óúŕ  ····<b>þŕíṽáçý ñóţíçé ······</b>⟧",
+    "marketing.headline": "⟦Ýóúŕ ţáƀš, éṽéŕýŵĥéŕé ýóú áŕé ············⟧",
+    "nav.save": "⟦Šáṽé ··⟧",
+    "order.mixed_plural": "⟦Šĥíþ  ··{count, plural, one {# þáŕçéł ···} other {# þáŕçéłš ····}} ţó  ··{city} ƀý  ··{when, date, medium}⟧",
+    "order.nested": "⟦{status, select, shipped {{count, plural, one {# þáŕçéł íš ····} other {# þáŕçéłš áŕé ·····}} óñ ţĥé ŵáý ·····} pending {Ŵáíţíñĝ óñ þáýɱéñţ ········} other {Šóɱéţĥíñĝ ŵéñţ ŵŕóñĝ ········}}⟧",
+    "profile.repeat": "⟦{name} íñṽíţéð ýóú. Šáý ĥí ţó  ··········{name}! ·⟧",
+    "seo.home_title": "⟦Šéñð ƀŕóŵšéŕ ţáƀš ƀéţŵééñ ýóúŕ ðéṽíçéš íñšţáñţłý ····················⟧"
+  }
+}
