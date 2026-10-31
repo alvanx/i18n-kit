@@ -217,6 +217,45 @@ export function touchKey(project, { namespace, key, locale, reason = null }) {
 }
 
 /**
+ * Ask for a human translation to be replaced by a machine one.
+ *
+ * The escape hatch that `setTranslation`'s refusal points at, and the only way
+ * past it. It exists because "never overwrite a human" has to have a door, and
+ * the door has to be narrow enough that nobody walks through it by accident:
+ *
+ *   A reason is required. Not for ceremony — it is what a reviewer reads in six
+ *   months when the German wording changed and nobody remembers why.
+ *
+ *   The previous text is written down first, in the entry and in the audit log,
+ *   so the decision is reversible by copy and paste rather than by archaeology.
+ *
+ *   The request is recorded in the catalog rather than acted on here. This
+ *   command does not call a provider; `translate` sees the flag and picks the
+ *   key up. So the diff that authorizes losing a human translation is reviewable
+ *   on its own, before any money is spent or any text is replaced.
+ */
+export function retranslateKey(project, { namespace, key, locale, reason, at }) {
+  if (!reason || !reason.trim()) {
+    throw new KeyError('retranslate needs --reason', {
+      hint: 'It is recorded next to the text being replaced. "Legal asked for different wording" is enough; "fix" is not.',
+    })
+  }
+
+  const entry = project.translationEntry(locale, namespace, key)
+  if (!entry) throw new KeyError(`${locale} has no translation for "${key}", so there is nothing to replace`)
+
+  const previous = typeof entry.message === 'string' ? entry.message : null
+  entry.history = [
+    ...(entry.history ?? []).slice(-9),
+    { at, reason: reason.trim(), origin: entry.origin ?? 'machine', message: previous },
+  ]
+  entry.origin = 'machine'
+  entry.retranslateRequested = { at, reason: reason.trim() }
+
+  return { namespace, key, locale, previous, reason: reason.trim() }
+}
+
+/**
  * Re-derive everything derivable and rewrite every file canonically.
  *
  * The command to run after resolving a merge conflict by hand: it restamps

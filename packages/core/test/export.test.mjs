@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadProject } from '../src/catalog.mjs'
 import { runExport, checkDrift, planExport } from '../src/export.mjs'
-import { capabilityFindings, resolveLocaleTag, messagesForTarget } from '../src/adapters/index.mjs'
+import { capabilityFindings, resolveLocaleTag, messagesForTarget, ADAPTERS } from '../src/adapters/index.mjs'
 import { analyze } from '../src/icu.mjs'
 import { sourceHash, contextHash, contentHash } from '../src/hash.mjs'
 import { contractOf } from '../src/icu.mjs'
@@ -221,6 +221,8 @@ const limited = {
     nesting: 1,
     placeholders: 'positional',
     repeatedPlaceholders: false,
+    numberArgs: false,
+    dateTimeArgs: false,
     numberDateSkeletons: false,
     richText: false,
     comments: 'none',
@@ -236,7 +238,9 @@ test('every unsupported construct is named, not silently dropped', () => {
   assert.match(capCodes('{n, selectordinal, one {#st} other {#th}}')[0], /selectordinal/)
   assert.match(capCodes('{g, select, other {x}}')[0], /select/)
   assert.match(capCodes('<b>bold</b>')[0], /rich-text tags/)
-  assert.match(capCodes('{d, date, short}')[0], /number or date argument/)
+  assert.match(capCodes('{d, date, short}')[0], /number or date skeleton/)
+  assert.match(capCodes('{n, number}')[0], /number argument/)
+  assert.match(capCodes('{d, date}')[0], /date or time argument/)
   assert.match(capCodes('{a} and {a}')[0], /repeated placeholder/)
 })
 
@@ -253,7 +257,7 @@ test('the web adapter can express everything the catalog can', () => {
   // and the rich message itself trips nothing on the web adapter
   const web = plans[0]
   assert.ok(web.files.length > 0)
-  assert.deepEqual(capabilityFindings(analyze(rich), { id: 'web', capabilities: { plurals: 'icu', exactMatch: true, select: true, selectordinal: true, offset: true, nesting: 3, placeholders: 'named', repeatedPlaceholders: true, numberDateSkeletons: true, richText: true, comments: 'none', needsLocaleMap: false } }, { targetName: 'web' }), [])
+  assert.deepEqual(capabilityFindings(analyze(rich), ADAPTERS.web, { targetName: 'web' }), [])
 })
 
 test('a target that needs a locale map errors rather than guessing', () => {

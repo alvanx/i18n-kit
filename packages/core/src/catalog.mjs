@@ -232,7 +232,7 @@ export class Project {
    */
   setTranslation(locale, namespace, key, { message, origin = 'machine', provenance = null, note = null }) {
     const existing = this.translationEntry(locale, namespace, key)
-    if (existing?.origin === 'human' && origin === 'machine') {
+    if (existing?.origin === 'human' && origin === 'machine' && !existing.retranslateRequested) {
       throw new CatalogError(
         `Refusing to overwrite the human translation of ${namespace}.${key} in ${locale}. ` +
           `Use \`i18n retranslate --key ${key} --locale ${locale} --reason "..."\`, which records the previous text first.`,
@@ -253,6 +253,10 @@ export class Project {
       attempt: null,
       note,
       qa: null,
+      // Kept, because the reason a human translation was replaced outlives the
+      // replacement. Dropped from the new entry's own request slot: the request
+      // has now been honoured.
+      ...(existing?.history ? { history: existing.history } : {}),
     })
   }
 

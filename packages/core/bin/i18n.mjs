@@ -30,7 +30,8 @@ import { loadProject } from '../src/catalog.mjs'
 import { check } from '../src/check.mjs'
 import { runExport } from '../src/export.mjs'
 import { generatePseudoLocale, PSEUDO_LOCALES } from '../src/pseudo.mjs'
-import { addKey, renameKey, deprecateKey, removeKey, touchKey, normalizeProject } from '../src/keys.mjs'
+import { addKey, renameKey, deprecateKey, removeKey, touchKey, normalizeProject, retranslateKey, appendAudit } from '../src/keys.mjs'
+import { runImport } from '../src/sync.mjs'
 import { RULES, severityOf } from '../src/rules.mjs'
 import { formatReport, formatStatus } from '../src/report.mjs'
 import { serializeJson, GENERATED_KEY, GENERATED_NOTICE } from '../src/writer.mjs'
@@ -38,8 +39,12 @@ import { serializeJson, GENERATED_KEY, GENERATED_NOTICE } from '../src/writer.mj
 const USAGE = `i18n-kit — one authored catalog, every platform's string files
 
   i18n init                             scaffold i18n/ in this project
+  i18n import [--dry-run]               read the platform string files into the catalog
   i18n check [options]                  validate everything (no network)
+  i18n translate [options]              fill the gaps (needs a provider and a key)
+  i18n review [options]                 fix an existing locale's findings
   i18n export [--dry-run]               write every target's files
+  i18n sync [options]                   import, check, translate, export
   i18n status [--json]                  per-locale completeness
   i18n pseudo [--locale <tag>]          generate the en-XA and ar-XB stress locales
 
@@ -48,7 +53,18 @@ const USAGE = `i18n-kit — one authored catalog, every platform's string files
   i18n deprecate <key> [--remove-after YYYY-MM-DD] [--reason <why>]
   i18n remove <key> [--force]
   i18n touch <key> --locale <tag> [--reason <why>]
+  i18n retranslate --key <key> --locale <tag> --reason <why>
   i18n normalize
+
+translate / review / sync options
+  --locales <a,b>    only these locales (default: every configured target)
+  --key <key>        only this key, repeatable
+  --dry-run          estimate the cost and change nothing
+  --max-spend <usd>  stop before passing this ceiling
+  --batch-size <n>   strings per request (default 20)
+  --max-attempts <n> tries per string before it is recorded as failed (default 3)
+  --model <id>       override the configured model
+  --yes              do not pause for confirmation
 
 check options
   --release          apply the stricter severities that only block a release
@@ -181,10 +197,25 @@ function cmdInit(options) {
     [
       `Created ${relative(root, configPath) || CONFIG_FILENAME}, a starter catalog, a glossary, and style.md.`,
       '',
-      'Next:',
-      '  1. Add your target languages to i18n/config.json under locales.required.',
-      '  2. Replace the example message in i18n/source/app.json.',
-      '  3. Run `i18n check`.',
+      'Add your target languages to i18n/config.json under locales.required, then:',
+      '',
+      'If this project ALREADY has string files, point the config at them and keep',
+      'authoring there. Nothing about how you work has to change:',
+      '',
+      '  "source": {',
+      '    "mode": "sync",',
+      '    "from": [{ "importer": "android", "path": "app/src/main/res/values/strings.xml", "namespace": "app" }]',
+      '  }',
+      '',
+      '  Importers: android, chrome, apple, apple-strings, icu-json.',
+      '  Then run `i18n import` and `i18n check`.',
+      '',
+      'If this project is starting fresh, replace the example message in',
+      'i18n/source/app.json and run `i18n check`. The catalog is the source of truth,',
+      'and `i18n export` will write the platform files for you.',
+      '',
+      'The one field worth caring about is `comment`. It is what a translator reads,',
+      'and it is the difference between "Open" the button and "Open" the status.',
       '',
     ].join('\n'),
   )
@@ -380,11 +411,278 @@ function cmdNormalize(options) {
   process.stdout.write(`Rewrote ${written.length} file(s).\n`)
 }
 
+function cmdImport(options) {
+  const root = options.cwd ?? process.cwd()
+  const config = loadConfig(root)
+  const dryRun = Boolean(options['dry-run'])
+  const result = runImport(config, { dryRun })
+
+  for (const finding of result.findings) {
+    process.stderr.write(`${finding.code}${finding.key ? ` ${finding.key}` : ''}: ${finding.detail}\n`)
+  }
+
+  const verb = dryRun ? 'would import' : 'imported'
+  process.stdout.write(
+    `\n${verb}: ${result.added.length} new, ${result.updated.length} changed, ` +
+      `${result.unchanged} unchanged, ${result.deprecated.length} gone\n`,
+  )
+  for (const change of result.updated.slice(0, 20)) {
+    process.stdout.write(`  ${change.key}\n    was: ${change.from}\n    now: ${change.to}\n`)
+  }
+  if (result.updated.length > 20) process.stdout.write(`  ... and ${result.updated.length - 20} more\n`)
+
+  if (!dryRun && result.written.length) {
+    process.stdout.write(`\nWrote ${result.written.length} catalog file(s). Run \`i18n check\` next.\n`)
+  }
+}
+
+/**
+ * Load the translate package on demand.
+ *
+ * Core deliberately does not depend on it, so that `check` and `export` work
+ * with no provider SDK installed and no key available. The cost is this
+ * indirection and a clear message when it is genuinely missing.
+ */
+async function loadTranslate() {
+  try {
+    return await import('@i18n-kit/translate')
+  } catch (err) {
+    if (err?.code === 'ERR_MODULE_NOT_FOUND') {
+      fail('Translation lives in a separate package. Install it:\n\n  npm install @i18n-kit/translate\n')
+    }
+    throw err
+  }
+}
+
+function translateOptions(options) {
+  const number = (name, fallback) => {
+    const raw = options[name]
+    if (raw === undefined) return fallback
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) fail(`--${name} must be a positive number, got "${raw}"`)
+    return value
+  }
+
+  return {
+    locales: options.locales ? options.locales.split(',').map((l) => l.trim()).filter(Boolean) : undefined,
+    keys: options.key ? [].concat(options.key) : null,
+    batchSize: number('batch-size', 20),
+    maxAttempts: number('max-attempts', 3),
+    maxSpend: options['max-spend'] === undefined ? null : number('max-spend', null),
+    dryRun: Boolean(options['dry-run']),
+  }
+}
+
+function buildProvider(options, config, translate) {
+  const configured = config.provider ?? {}
+  const kind = options.provider ?? configured.kind ?? 'anthropic'
+
+  if (kind !== 'anthropic') {
+    fail(
+      `Unknown provider "${kind}". This build ships "anthropic".\n` +
+        `The engine takes any object with translateBatch and estimate, so another one is a module, not a fork.`,
+    )
+  }
+
+  return translate.createAnthropicProvider({
+    model: options.model ?? configured.model ?? translate.DEFAULT_MODEL,
+    effort: configured.effort ?? 'high',
+  })
+}
+
+function reportTranslation(report, translate) {
+  const out = []
+
+  for (const row of report.reused) {
+    out.push(`reused   ${row.locale} ${row.key} (same source text as ${row.from})`)
+  }
+  for (const row of report.translated) {
+    const flags = row.advisory.map((a) => a.code).join(', ')
+    out.push(`ok       ${row.locale} ${row.key}${row.attempt > 1 ? ` (attempt ${row.attempt})` : ''}${flags ? ` [${flags}]` : ''}`)
+  }
+  for (const row of report.skipped) {
+    out.push(`skipped  ${row.locale} ${row.key}: ${row.reason}`)
+  }
+  for (const row of report.failed) {
+    out.push(`FAILED   ${row.locale} ${row.key}: ${row.reason}`)
+  }
+
+  if (report.notes.length) {
+    out.push('', 'Notes from the translator, worth a read before you ship:')
+    for (const row of report.notes) out.push(`  ${row.locale} ${row.key}: ${row.note}`)
+  }
+
+  if (report.dryRun) {
+    const estimate = report.estimate
+    out.push(
+      '',
+      estimate && estimate.items > 0
+        ? `Would translate ${estimate.items} string(s): ` +
+          `${estimate.inputTokens.toLocaleString('en-US')} input tokens, ` +
+          `roughly ${estimate.outputTokens.toLocaleString('en-US')} output, ` +
+          `about ${translate.formatCost(estimate.cost)} on ${report.model}.`
+        : 'Nothing to translate.',
+      estimate?.approximate
+        ? 'Counted from character length, because no credentials were available to ask the API. Expect it to be within about 15%.'
+        : null,
+      'Retries are not priced in: only the strings that fail validation are sent again.',
+    )
+  } else {
+    out.push('', translate.formatUsage(report.usage, report.model))
+  }
+
+  if (report.failed.length) {
+    out.push(
+      '',
+      `${report.failed.length} string(s) could not be validated and were recorded with no text.`,
+      'They fall back to the source language and `i18n check` reports them. That is deliberate:',
+      'an empty slot is a visible gap, and a wrong translation is an invisible one.',
+    )
+  }
+
+  return out.filter((line) => line !== null).join('\n')
+}
+
+async function cmdTranslate(options, positionals, { onlyWithFindings = false } = {}) {
+  const translate = await loadTranslate()
+  const { config, project, loadFindings } = open(options)
+  const provider = buildProvider(options, config, translate)
+  const opts = translateOptions(options)
+
+  let findingsByKey = new Map()
+  if (onlyWithFindings) {
+    // Review works from the checker's own output, so the two can never
+    // disagree about what is wrong with a locale.
+    const report = check(project, { loadFindings })
+    for (const finding of report.findings) {
+      if (!finding.key || !finding.locale || finding.severity === 'info') continue
+      if (opts.locales && !opts.locales.includes(finding.locale)) continue
+      // A string that has never been translated is not a fault in the existing
+      // translation; it is the absence of one. `translate` fills those. Review
+      // is for what is there and wrong, which is a different decision about
+      // how to spend money.
+      if (ABSENCE_CODES.has(finding.code)) continue
+      // Keyed by locale as well as key. Without the locale, a broken Russian
+      // string would queue the same key in German, which is correct there and
+      // would be paid for anyway.
+      const id = `${finding.locale}/${finding.namespace ?? 'app'}/${finding.key}`
+      findingsByKey.set(id, [...(findingsByKey.get(id) ?? []), finding])
+    }
+    if (findingsByKey.size === 0) {
+      process.stdout.write(
+        'Nothing to review: `i18n check` finds no problems in the translations that exist.\n' +
+          'Untranslated strings are `i18n translate`, not review.\n',
+      )
+      return
+    }
+  }
+
+  const seen = new Set()
+  const report = await translate.translateProject({
+    project,
+    provider,
+    options: { ...opts, onlyWithFindings, findingsByKey },
+    onEvent: (event) => {
+      if (event.type === 'locale-start') {
+        process.stderr.write(`${event.locale}: ${event.items} string(s) in ${event.batches} request(s)\n`)
+      }
+      if (event.type === 'rejected' && !seen.has(`${event.locale}/${event.key}`)) {
+        seen.add(`${event.locale}/${event.key}`)
+        process.stderr.write(`  retrying ${event.locale} ${event.key}: ${event.codes.join(', ')}\n`)
+      }
+      if (event.type === 'batch-error') process.stderr.write(`  ${event.code}: ${event.detail}\n`)
+    },
+  })
+
+  if (!opts.dryRun) {
+    const written = project.save()
+    process.stdout.write(`${reportTranslation(report, translate)}\n\nWrote ${written.length} catalog file(s).\n`)
+    process.stdout.write('Run `i18n check` and then `i18n export`.\n')
+  } else {
+    process.stdout.write(`${reportTranslation(report, translate)}\n`)
+  }
+}
+
+/**
+ * Findings that mean "there is nothing here", as opposed to "what is here is
+ * wrong". Review ignores them; translate exists for them.
+ */
+const ABSENCE_CODES = new Set(['MISSING_KEY', 'MISSING_KEY_OPTIONAL', 'FAILED_ATTEMPT'])
+
+const cmdReview = (options, positionals) => cmdTranslate(options, positionals, { onlyWithFindings: true })
+
+async function cmdSync(options) {
+  cmdImport(options)
+
+  const { project, loadFindings } = open(options)
+  const before = check(project, { loadFindings })
+
+  // Gate on the SOURCE only. A missing or broken translation is the reason
+  // sync is being run, so blocking on one would make the command refuse to do
+  // its job. A source finding carries no locale.
+  const sourceErrors = before.findings.filter((f) => f.severity === 'error' && !f.locale)
+  if (sourceErrors.length) {
+    for (const finding of sourceErrors) {
+      process.stderr.write(`${finding.code} ${finding.key ?? ''}: ${finding.detail}\n`)
+    }
+    fail(
+      `\n${sourceErrors.length} problem(s) in the source catalog. Fix those first: ` +
+        `a bad source message produces a bad translation in every language at once.\n` +
+        `Run \`i18n check\` for the full picture.`,
+    )
+  }
+
+  await cmdTranslate(options, [])
+  if (options['dry-run']) return
+
+  // Re-check before export so the run ends by saying what it could not do.
+  const after = loadProject(project.config)
+  const report = check(after.project, { loadFindings: after.findings })
+  cmdExport(options)
+  if (!report.ok) {
+    process.stdout.write(
+      `\n${report.counts.error} error(s) remain. Run \`i18n check\` to see them: ` +
+        `anything that could not be validated was left untranslated rather than guessed at.\n`,
+    )
+  }
+}
+
+function cmdRetranslate(options) {
+  if (!options.key || !options.locale) {
+    fail('Usage: i18n retranslate --key <key> --locale <tag> --reason "why"')
+  }
+  const { config, project } = open(options)
+  const key = [].concat(options.key)[0]
+  const namespace = namespaceOf(options, project, key)
+
+  const result = retranslateKey(project, {
+    namespace,
+    key,
+    locale: options.locale,
+    reason: options.reason,
+    at: today(),
+  })
+
+  appendAudit(config, { at: today(), action: 'retranslate', ...result })
+  project.save()
+
+  process.stdout.write(
+    `Recorded a retranslation request for ${namespace}.${key} in ${options.locale}.\n` +
+      (result.previous ? `The previous text is kept in the entry's history:\n  ${result.previous}\n` : '') +
+      `\nNothing has changed yet. Run \`i18n translate --locales ${options.locale} --key ${key}\` to replace it.\n`,
+  )
+}
+
 // --- entry point ------------------------------------------------------------
 
 const COMMANDS = {
   init: cmdInit,
+  import: cmdImport,
   check: cmdCheck,
+  translate: cmdTranslate,
+  review: cmdReview,
+  sync: cmdSync,
+  retranslate: cmdRetranslate,
   export: cmdExport,
   status: cmdStatus,
   pseudo: cmdPseudo,
@@ -417,6 +715,14 @@ function main(argv) {
       'reuse-key': { type: 'boolean' },
       'remove-after': { type: 'string' },
       force: { type: 'boolean' },
+      locales: { type: 'string' },
+      key: { type: 'string', multiple: true },
+      'max-spend': { type: 'string' },
+      'batch-size': { type: 'string' },
+      'max-attempts': { type: 'string' },
+      model: { type: 'string' },
+      provider: { type: 'string' },
+      yes: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   })
@@ -430,14 +736,35 @@ function main(argv) {
   const handler = COMMANDS[command]
   if (!handler) fail(`Unknown command "${command}".\n\n${USAGE}`)
 
-  handler(values, rest)
+  return handler(values, rest)
 }
 
 try {
-  main(process.argv.slice(2))
+  await main(process.argv.slice(2))
 } catch (err) {
-  if (err?.name === 'ConfigError' || err?.name === 'CatalogError' || err?.name === 'KeyError' || err?.name === 'IcuError') {
+  if (
+    err?.name === 'ConfigError' ||
+    err?.name === 'CatalogError' ||
+    err?.name === 'KeyError' ||
+    err?.name === 'IcuError' ||
+    err?.name === 'SpendLimitReached' ||
+    err?.name === 'RenderError'
+  ) {
     fail(err.message)
+  }
+  // An authentication failure is the one provider error worth translating into
+  // advice, because it is the first thing anyone hits.
+  if (
+    err?.status === 401 ||
+    err?.name === 'AuthenticationError' ||
+    String(err?.message ?? '').includes('Could not resolve authentication method')
+  ) {
+    fail(
+      'No usable credentials for the translation provider.\n\n' +
+        '  Set ANTHROPIC_API_KEY in your environment, or run `ant auth login`.\n\n' +
+        '  Only `translate` and `review` need them. `import`, `check`, `export`, `status`\n' +
+        '  and `pseudo` are entirely local, which is why they work on a fork pull request.',
+    )
   }
   throw err
 }

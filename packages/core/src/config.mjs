@@ -14,6 +14,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, isAbsolute } from 'node:path'
 import { isKnownRule, RULES } from './rules.mjs'
+import { IMPORTERS } from './importers/index.mjs'
 
 export const CONFIG_FILENAME = 'i18n/config.json'
 
@@ -122,6 +123,8 @@ export function resolveConfig(raw, { root = process.cwd(), file = '<inline>' } =
   const targets = resolveTargets(raw.targets ?? {}, { knownLocales, file })
   const severity = validateSeverity(raw.severity ?? {}, file)
 
+  const source = resolveSource(raw.source ?? {}, { root, file })
+
   const policy = {
     defaultClass: raw.policy?.defaultClass ?? 'ui',
     zeroCase: raw.policy?.zeroCase ?? 'separate-key',
@@ -138,6 +141,7 @@ export function resolveConfig(raw, { root = process.cwd(), file = '<inline>' } =
     locales: { required, optional, all: targetLocales },
     fallback,
     paths,
+    source,
     targets,
     generated: { committed: raw.generated?.committed ?? false },
     policy,
@@ -214,6 +218,75 @@ function resolveFallback(raw, { knownLocales, sourceLocale, targetLocales, file 
   }
 
   return out
+}
+
+/**
+ * Where the source strings come from, and who owns them.
+ *
+ * Two modes, and the choice is the most consequential one in the config.
+ *
+ *   "sync" (the default) leaves the platform's own file as the source of
+ *   truth. Developers keep adding strings to res/values/strings.xml exactly as
+ *   they do now, `i18n import` reads them, and export writes only the target
+ *   locales. Nothing about how the team works has to change, which is the only
+ *   realistic way to adopt this on a codebase that already ships.
+ *
+ *   "adopt" moves ownership into the catalog. Export then writes the source
+ *   file too, and the platform file becomes generated output. Right for a new
+ *   project, and right eventually for an old one, but it is a migration.
+ *
+ * A project with no `source.from` is in adopt mode by definition: there is
+ * nothing to import from, so the catalog is where the strings live.
+ */
+function resolveSource(raw, { root, file }) {
+  const from = raw.from ?? []
+  if (!Array.isArray(from)) throw new ConfigError(`${file}: source.from must be an array`)
+
+  const mode = raw.mode ?? (from.length > 0 ? 'sync' : 'adopt')
+  if (mode !== 'sync' && mode !== 'adopt') {
+    throw new ConfigError(`${file}: source.mode must be "sync" or "adopt", got ${JSON.stringify(mode)}`, {
+      hint: 'sync keeps the platform file authoritative and generates only translations. adopt makes the catalog authoritative.',
+    })
+  }
+  if (mode === 'sync' && from.length === 0) {
+    throw new ConfigError(`${file}: source.mode is "sync" but source.from is empty`, {
+      hint: 'In sync mode the strings are imported from the platform files listed in source.from. With nothing to import from, use "adopt".',
+    })
+  }
+
+  const resolved = from.map((origin, index) => {
+    const where = `${file}: source.from[${index}]`
+    if (!origin || typeof origin !== 'object') throw new ConfigError(`${where} must be an object`)
+    if (typeof origin.path !== 'string' || !origin.path) throw new ConfigError(`${where}.path is required`)
+    if (!Object.hasOwn(IMPORTERS, origin.importer)) {
+      throw new ConfigError(`${where}.importer is ${JSON.stringify(origin.importer)}`, {
+        hint:
+          `Known importers: ${Object.keys(IMPORTERS).join(', ')}. ` +
+          `It is stated rather than guessed because a .json file could be a Chrome messages.json or a plain ICU catalog, and reading one as the other produces a catalog of nonsense.`,
+      })
+    }
+    const namespace = origin.namespace ?? 'app'
+    if (!/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(namespace)) {
+      throw new ConfigError(`${where}.namespace "${namespace}" is not a valid namespace name`)
+    }
+    return {
+      importer: origin.importer,
+      path: isAbsolute(origin.path) ? origin.path : resolve(root, origin.path),
+      namespace,
+    }
+  })
+
+  const namespaces = new Set()
+  for (const origin of resolved) {
+    if (namespaces.has(origin.namespace)) {
+      throw new ConfigError(`${file}: two source.from entries both import into namespace "${origin.namespace}"`, {
+        hint: 'One namespace is one catalog file, so two importers writing the same one would overwrite each other. Give them different namespaces.',
+      })
+    }
+    namespaces.add(origin.namespace)
+  }
+
+  return { mode, from: resolved }
 }
 
 function resolvePaths(raw, root) {

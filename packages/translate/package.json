@@ -1,0 +1,22 @@
+{
+  "name": "@i18n-kit/translate",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Provider-neutral translation engine for i18n-kit. Validates every machine translation before it lands, and never overwrites a human one.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@i18n-kit/core": "0.1.0",
+    "@anthropic-ai/sdk": "^1.3.0",
+    "zod": "^4.6.7"
+  }
+}

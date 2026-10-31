@@ -49,8 +49,54 @@ Phase 1: the core package. Nothing is published to npm yet.
 - Workflow templates, split so the check that everyone needs never requires the
   secret that only maintainers have.
 
+- **Importers**, so the toolkit works on a codebase that already ships: Android
+  `strings.xml`, Chrome `_locales`, Apple `.xcstrings` and legacy `.strings`,
+  and plain or nested ICU JSON. An argument the platform format cannot name
+  becomes `arg2` *and* raises a finding; a plural shape the importer does not
+  recognize is reported rather than flattened to its `other` branch.
+- **Sync mode**, where the platform's own file stays the source of truth and
+  only the other languages are generated. Re-import merges rather than
+  overwrites: argument renames recorded in the catalog are reapplied every
+  time, and a key that disappears is deprecated rather than deleted.
+- **The Android, Chrome, and Apple adapters.** Android explodes a plural into
+  one whole string per CLDR category for the target locale, so Russian gets
+  four branches where English has two. Apple writes every locale into one
+  `.xcstrings` with plurals in Xcode's substitution form. Chrome declares that
+  it cannot express a plural at all, which is a check error naming the key
+  instead of a file that ships the `other` branch to every count.
+- **`@i18n-kit/translate`**: the engine. Work is selected so that a human-owned
+  translation is never queued and an already-settled identical source string is
+  reused rather than re-sent. Batches are grouped by screen and carry that
+  screen's settled wording as precedent. Every answer is validated, and a
+  rejection is fed back as the specific correction needed rather than a bare
+  retry. A string that still fails is recorded with no text, so it falls back
+  visibly instead of shipping wrong.
+- **`i18n review`**, which works from the checker's own output so the two cannot
+  disagree about what is wrong with a locale. It ignores untranslated strings:
+  absence is `translate`'s job, and conflating them spends money by surprise.
+- **`i18n retranslate`**, the audited door past human ownership. It requires a
+  reason, records the previous text, and writes a request into the catalog
+  rather than acting on it, so the diff that authorizes the loss is reviewable
+  on its own.
+- **Cost control.** `--dry-run` prices a run and works with no credentials,
+  falling back to a character-based estimate and saying so. `--max-spend` is
+  checked before each request rather than after.
+
+### Fixed
+
+- The capability matrix could not tell a plain `{n, number}` from a
+  `::currency/EUR` skeleton, so a format that can express the first and not the
+  second had to reject both.
+- Converting a platform string could reintroduce the ICU apostrophe trap:
+  `l'{name}` silently swallows the placeholder, and the escaping ran in the
+  wrong order to prevent it.
+- An XML entity with no definition aborted a whole `strings.xml` import instead
+  of reporting the one string it appeared in.
+- An Android string ending in a placeholder was wrapped in literal quotes,
+  which Android would have kept as part of the string.
+- A review finding in one locale queued the same key in every locale.
+
 ### Not yet built
 
-The runtime formatter (phase 2), the provider-neutral translation engine and
-the `qa` review command (phase 3), and the Chrome, Android, and Apple adapters
-(phase 4).
+The runtime formatter, string extraction from source code, a review UI, and
+provider adapters beyond Anthropic.

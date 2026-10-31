@@ -102,6 +102,13 @@ export function analyze(text) {
   let maxDepth = 0
   let poundOutsidePlural = 0
   let hasPound = false
+  // A plain {n, number} and a styled {n, number, ::currency/EUR} are different
+  // questions for an adapter: Android can write the first as %d and has no way
+  // at all to write the second. Conflating them would either reject harmless
+  // messages or export a currency with the wrong symbol.
+  let hasSkeleton = false
+  let hasPlainNumber = false
+  let hasDateTime = false
 
   const note = (name, kind) => {
     let entry = args.get(name)
@@ -131,10 +138,16 @@ export function analyze(text) {
           break
 
         case TYPE.argument:
+          note(node.value, ARG_KIND[node.type])
+          break
+
         case TYPE.number:
         case TYPE.date:
         case TYPE.time:
           note(node.value, ARG_KIND[node.type])
+          if (node.style !== null && node.style !== undefined) hasSkeleton = true
+          else if (node.type === TYPE.number) hasPlainNumber = true
+          if (node.type === TYPE.date || node.type === TYPE.time) hasDateTime = true
           break
 
         case TYPE.tag:
@@ -198,6 +211,9 @@ export function analyze(text) {
       hasNumberOrDate: [...args.values()].some((v) =>
         ['number', 'date', 'time'].some((k) => v.kinds.has(k)),
       ),
+      hasSkeleton,
+      hasPlainNumber,
+      hasDateTime,
       hasPound,
       poundOutsidePlural,
       maxDepth,

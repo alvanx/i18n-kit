@@ -20,10 +20,16 @@
  */
 
 import web from './web.mjs'
+import android from './android.mjs'
+import chrome from './chrome.mjs'
+import apple from './apple.mjs'
 
 /** @type {Record<string, Adapter>} */
 export const ADAPTERS = {
   web,
+  android,
+  chrome,
+  apple,
 }
 
 export function getAdapter(id) {
@@ -48,7 +54,9 @@ export function getAdapter(id) {
  * @property {number}  nesting             maximum supported depth
  * @property {'named'|'positional'} placeholders
  * @property {boolean} repeatedPlaceholders
- * @property {boolean} numberDateSkeletons
+ * @property {boolean} numberArgs            plain `{n, number}`
+ * @property {boolean} dateTimeArgs          plain `{d, date}` / `{t, time}`
+ * @property {boolean} numberDateSkeletons   styled, e.g. `::currency/EUR`
  * @property {boolean} richText
  * @property {'full'|'default-locale-only'|'none'} comments
  * @property {boolean} needsLocaleMap      whether an unmapped locale is an error
@@ -91,8 +99,20 @@ export function capabilityFindings(analysis, adapter, { targetName }) {
   if (analysis.constructs.hasTags && !c.richText) {
     cannot('rich-text tags')
   }
-  if (analysis.constructs.hasNumberOrDate && !c.numberDateSkeletons) {
-    cannot('a number or date argument', 'format the value before passing it in')
+  if (analysis.constructs.hasSkeleton && !c.numberDateSkeletons) {
+    cannot(
+      'a number or date skeleton',
+      'this format has no way to carry one, so format the value before passing it in and use a plain argument',
+    )
+  }
+  if (analysis.constructs.hasPlainNumber && !c.numberArgs) {
+    cannot('a number argument', 'format the value before passing it in')
+  }
+  if (analysis.constructs.hasDateTime && !c.dateTimeArgs) {
+    cannot(
+      'a date or time argument',
+      'format it in the caller, where the time zone and calendar are known, and pass the result as text',
+    )
   }
   if (analysis.constructs.repeated.length && !c.repeatedPlaceholders) {
     cannot(`a repeated placeholder ({${analysis.constructs.repeated[0]}} appears more than once)`)

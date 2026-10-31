@@ -68,6 +68,8 @@ export default {
     nesting: 3,
     placeholders: 'named',
     repeatedPlaceholders: true,
+    numberArgs: true,
+    dateTimeArgs: true,
     numberDateSkeletons: true,
     richText: true,
     comments: 'none',
