@@ -120,7 +120,7 @@ export function resolveConfig(raw, { root = process.cwd(), file = '<inline>' } =
 
   const fallback = resolveFallback(raw.fallback ?? {}, { knownLocales, sourceLocale, targetLocales, file })
   const paths = resolvePaths(raw.paths ?? {}, root)
-  const targets = resolveTargets(raw.targets ?? {}, { knownLocales, file })
+  const targets = resolveTargets(raw.targets ?? {}, { knownLocales, file, root })
   const severity = validateSeverity(raw.severity ?? {}, file)
 
   const source = resolveSource(raw.source ?? {}, { root, file })
@@ -298,7 +298,7 @@ function resolvePaths(raw, root) {
   return out
 }
 
-function resolveTargets(raw, { knownLocales, file }) {
+function resolveTargets(raw, { knownLocales, file, root }) {
   const out = {}
 
   for (const [name, target] of Object.entries(raw)) {
@@ -337,7 +337,11 @@ function resolveTargets(raw, { knownLocales, file }) {
       name,
       adapter: target.adapter,
       enabled: target.enabled ?? true,
-      out: target.out ?? null,
+      // Resolved against the project root, like every path in `paths`. Left
+      // relative it would land wherever the command happened to be run from,
+      // which for a target whose output belongs inside the repo means files
+      // scattered outside it.
+      out: target.out ? (isAbsolute(target.out) ? target.out : resolve(root, target.out)) : null,
       localeMap,
       options: target.options ?? {},
     }

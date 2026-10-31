@@ -1,0 +1,19 @@
+{
+  "terms": [
+    {
+      "term": "Tabsend",
+      "doNotTranslate": true,
+      "notes": "The product name. Never translated, never inflected."
+    },
+    {
+      "term": "relay",
+      "translations": { "de": "Relay", "ru": "реле" },
+      "notes": "The small server that holds tabs between devices. German keeps the English word: it is what the UI has always called it."
+    },
+    {
+      "term": "tab",
+      "translations": { "de": "Tab", "ru": "вкладка" },
+      "notes": "A browser tab. German uses the English word."
+    }
+  ]
+}

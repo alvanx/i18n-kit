@@ -1,0 +1,129 @@
+{
+  "$schema": "../../node_modules/@i18n-kit/core/schemas/source.schema.json",
+  "messages": {
+    "app.name": {
+      "comment": "The product name, as it appears in the launcher.",
+      "message": "Tabsend",
+      "platformNames": {
+        "android": "app_name"
+      }
+    },
+    "batch.open_all": {
+      "comment": "Button on the batch notification. Opens every tab in the batch at once.",
+      "group": "Notifications",
+      "message": "Open all",
+      "platformNames": {
+        "android": "batch_open_all"
+      }
+    },
+    "batch.summary_partial": {
+      "argRenames": {
+        "arg1": "arrived",
+        "arg2": "total"
+      },
+      "comment": "Shown while a batch is still arriving across polls, so \"Open all\" being short of the full batch isn't a surprise.",
+      "group": "Notifications",
+      "message": "{arrived, number} of {total, number} tabs arrived so far",
+      "placeholders": {
+        "arrived": {
+          "example": "3"
+        },
+        "total": {
+          "example": "7"
+        }
+      },
+      "platformNames": {
+        "android": "batch_summary_partial"
+      }
+    },
+    "batch.summary_title": {
+      "comment": "Batch notification title when the sender device is not known.",
+      "group": "Notifications",
+      "message": "{count, plural, one {# tab received} other {# tabs received}}",
+      "placeholders": {
+        "count": {}
+      },
+      "platformNames": {
+        "android": "batch_summary_title"
+      }
+    },
+    "batch.summary_title_from": {
+      "argRenames": {
+        "arg2": "senderDevice"
+      },
+      "comment": "Multi-tab batch summary. The \"from\" variant is used when the sender device is known; the plain one covers an unnamed sender.",
+      "group": "Notifications",
+      "message": "{count, plural, one {# tab from {senderDevice}} other {# tabs from {senderDevice}}}",
+      "placeholders": {
+        "count": {},
+        "senderDevice": {
+          "example": "Mac mini"
+        }
+      },
+      "platformNames": {
+        "android": "batch_summary_title_from"
+      }
+    },
+    "channel.links_desc": {
+      "comment": "Android notification channel description, shown under the name in system settings.",
+      "group": "Notifications",
+      "message": "Tabs sent to this device",
+      "platformNames": {
+        "android": "channel_links_desc"
+      }
+    },
+    "channel.links_name": {
+      "comment": "Android notification channel name, shown in system settings.",
+      "group": "Notifications",
+      "message": "Incoming links",
+      "platformNames": {
+        "android": "channel_links_name"
+      }
+    },
+    "relay.move_done": {
+      "comment": "Relay The address the user typed, echoed back after a successful move.",
+      "group": "Relay",
+      "message": "Now using {address}.",
+      "placeholders": {
+        "address": {
+          "example": "home.local:8787"
+        }
+      },
+      "platformNames": {
+        "android": "relay_move_done"
+      }
+    },
+    "relay.sync_progress": {
+      "argRenames": {
+        "arg1": "percent"
+      },
+      "comment": "Progress line during a relay move. The percent sign is literal.",
+      "group": "Relay",
+      "message": "Synced {percent, number}% so far",
+      "placeholders": {
+        "percent": {
+          "example": "40"
+        }
+      },
+      "platformNames": {
+        "android": "relay_sync_progress"
+      }
+    },
+    "relay.waiting": {
+      "comment": "A string with an apostrophe directly before a placeholder. In ICU this is the classic trap: unescaped, it swallows the argument entirely.",
+      "group": "Relay",
+      "message": "Waiting on {device}'s reply",
+      "placeholders": {
+        "device": {
+          "example": "Mac mini"
+        }
+      },
+      "platformNames": {
+        "android": "relay_waiting"
+      }
+    }
+  },
+  "namespace": "app",
+  "schemaVersion": 1,
+  "sourceLocale": "en"
+}

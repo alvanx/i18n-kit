@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A hand-maintained Android string file, the way a project that already ships
+  has one. i18n-kit reads this and never writes to it.
+
+  Every hard case is here on purpose: a plural with text around it, an
+  argument the format cannot name, an argument that IS named through
+  <xliff:g>, a section header, an apostrophe next to a placeholder, and a
+  literal percent sign.
+-->
+<resources>
+    <string name="app_name">Tabsend</string>
+
+    <!-- Notifications -->
+    <string name="channel_links_name">Incoming links</string>
+    <string name="channel_links_desc">Tabs sent to this device</string>
+
+    <!-- Multi-tab batch summary. The "from" variant is used when the sender
+         device is known; the plain one covers an unnamed sender. -->
+    <plurals name="batch_summary_title_from">
+        <item quantity="one">%1$d tab from %2$s</item>
+        <item quantity="other">%1$d tabs from %2$s</item>
+    </plurals>
+    <plurals name="batch_summary_title">
+        <item quantity="one">%1$d tab received</item>
+        <item quantity="other">%1$d tabs received</item>
+    </plurals>
+
+    <!-- Shown while a batch is still arriving across polls, so "Open all"
+         being short of the full batch isn't a surprise. -->
+    <string name="batch_summary_partial">%1$d of %2$d tabs arrived so far</string>
+    <string name="batch_open_all">Open all</string>
+
+    <!-- Relay -->
+    <!-- The address the user typed, echoed back after a successful move. -->
+    <string name="relay_move_done">Now using <xliff:g id="address" example="home.local:8787">%1$s</xliff:g>.</string>
+    <string name="relay_sync_progress">Synced %1$d%% so far</string>
+
+    <!-- A string with an apostrophe directly before a placeholder. In ICU this
+         is the classic trap: unescaped, it swallows the argument entirely. -->
+    <string name="relay_waiting">Waiting on <xliff:g id="device" example="Mac mini">%1$s</xliff:g>'s reply</string>
+
+    <string name="debug_build_tag" translatable="false">nightly</string>
+</resources>

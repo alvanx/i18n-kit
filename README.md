@@ -94,6 +94,21 @@ Would translate 114 string(s): 16,143 input tokens, roughly 5,381 output, about 
 
 Then `npx i18n translate --max-spend 1` and `npx i18n export`. Or `npx i18n sync`, which is all four in order and stops if the source has problems, because a bad source message produces a bad translation in every language at once.
 
+## A worked example
+
+[`examples/android-sync/`](examples/android-sync/) is a complete one, with real
+generated output: a hand-maintained `strings.xml` going in, and `values-de` and
+`values-ru` coming out with two and four plural branches respectively. It
+regenerates byte for byte with no API key:
+
+```bash
+node examples/android-sync/offline-translate.mjs
+```
+
+Two of its answers are deliberately wrong in the two ways that reach users, so
+running it prints the rejection and the retry rather than asking you to take
+them on trust.
+
 ## Commands
 
 | Command | Network | Purpose |

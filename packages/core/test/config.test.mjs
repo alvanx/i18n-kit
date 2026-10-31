@@ -133,3 +133,32 @@ test('ConfigError carries a hint', () => {
     assert.match(err.message, /Required fails check/)
   }
 })
+
+test('a relative target out path resolves against the project root', () => {
+  // Left relative it resolved against the process working directory, so an
+  // export run from anywhere but the project root scattered strings.xml
+  // files outside the repository.
+  const config = resolveConfig(
+    {
+      schemaVersion: 1,
+      sourceLocale: 'en',
+      locales: { required: ['de'], optional: [] },
+      targets: { android: { adapter: 'android', out: 'app/src/main/res' } },
+    },
+    { root: '/tmp/project', file: '/tmp/project/i18n/config.json' },
+  )
+  assert.equal(config.targets.android.out, '/tmp/project/app/src/main/res')
+})
+
+test('an absolute target out path is left alone', () => {
+  const config = resolveConfig(
+    {
+      schemaVersion: 1,
+      sourceLocale: 'en',
+      locales: { required: ['de'], optional: [] },
+      targets: { android: { adapter: 'android', out: '/elsewhere/res' } },
+    },
+    { root: '/tmp/project', file: '/tmp/project/i18n/config.json' },
+  )
+  assert.equal(config.targets.android.out, '/elsewhere/res')
+})

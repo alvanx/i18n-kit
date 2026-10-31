@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "locales": { "required": ["de", "ru"], "optional": [] },
+  "source": {
+    "mode": "sync",
+    "from": [
+      {
+        "importer": "android",
+        "path": "app/src/main/res/values/strings.xml",
+        "namespace": "app"
+      }
+    ]
+  },
+  "targets": {
+    "android": { "adapter": "android", "out": "app/src/main/res" }
+  }
+}

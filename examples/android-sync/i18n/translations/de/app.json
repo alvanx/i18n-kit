@@ -1,0 +1,187 @@
+{
+  "locale": "de",
+  "messages": {
+    "app.name": {
+      "attempt": null,
+      "contentHash": "h1:9ec404f063cf9b53",
+      "contextHash": "c1:2e96a47e46576e4c",
+      "message": "Tabsend",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:065f5fc063451bb0"
+    },
+    "batch.open_all": {
+      "attempt": null,
+      "contentHash": "h1:9f4faceed455256f",
+      "contextHash": "c1:7adcad17e1271a97",
+      "message": "Alle öffnen",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:739ff3984fa6a184"
+    },
+    "batch.summary_partial": {
+      "attempt": null,
+      "contentHash": "h1:c18dcc98f376d6fe",
+      "contextHash": "c1:5c751869a4bd11af",
+      "message": "{arrived, number} von {total, number} Tabs bisher angekommen",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:e969f22f5e3a7329"
+    },
+    "batch.summary_title": {
+      "attempt": null,
+      "contentHash": "h1:0e6eb6250917c0f9",
+      "contextHash": "c1:11647c16e28ac426",
+      "message": "{count, plural, one {# Tab empfangen} other {# Tabs empfangen}}",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:b402fc846cf7410d"
+    },
+    "batch.summary_title_from": {
+      "attempt": null,
+      "contentHash": "h1:a5f75669b54ce2cb",
+      "contextHash": "c1:ea5cec18896b5044",
+      "message": "{count, plural, one {# Tab von {senderDevice}} other {# Tabs von {senderDevice}}}",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 2,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:30bf54493484a384"
+    },
+    "channel.links_desc": {
+      "attempt": null,
+      "contentHash": "h1:6de3b99b26352807",
+      "contextHash": "c1:bcf2b7b8787c5fdd",
+      "message": "Tabs, die an dieses Gerät gesendet wurden",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:ca9273ce7d972d1e"
+    },
+    "channel.links_name": {
+      "attempt": null,
+      "contentHash": "h1:69333ec92cb47273",
+      "contextHash": "c1:1d03001532e0c68a",
+      "message": "Eingehende Links",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:3a6fdaa4849d7768"
+    },
+    "relay.move_done": {
+      "attempt": null,
+      "contentHash": "h1:57456ac1892af54d",
+      "contextHash": "c1:0621bcad9f6956e5",
+      "message": "Verwendet jetzt {address}.",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:f3c17f81e17a4eac"
+    },
+    "relay.sync_progress": {
+      "attempt": null,
+      "contentHash": "h1:7aaa08231fb52085",
+      "contextHash": "c1:3a74a6841f881af8",
+      "message": "Bisher {percent, number}% synchronisiert",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:ced98309b8a1252f"
+    },
+    "relay.waiting": {
+      "attempt": null,
+      "contentHash": "h1:e0e115af62d94032",
+      "contextHash": "c1:cedc2ec101077d45",
+      "message": "Warte auf die Antwort von {device}",
+      "note": null,
+      "origin": "machine",
+      "provenance": {
+        "at": "2026-10-31",
+        "attempt": 1,
+        "kind": "provider",
+        "model": "claude-opus-5-5",
+        "provider": "offline"
+      },
+      "qa": null,
+      "review": "none",
+      "sourceHash": "s1:5cb67cb2a66c5f16"
+    }
+  },
+  "namespace": "app",
+  "schemaVersion": 1
+}
