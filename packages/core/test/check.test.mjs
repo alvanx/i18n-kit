@@ -417,7 +417,7 @@ test('a placeholder example that looks like real data is flagged', () => {
         'a.b': {
           message: 'Mail to {addr}',
           comment: 'Body.',
-          placeholders: { addr: { type: 'string', example: 'ben.misja@example.com' } },
+          placeholders: { addr: { type: 'string', example: 'someone@example.com' } },
         },
       },
     },
