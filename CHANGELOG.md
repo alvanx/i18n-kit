@@ -8,6 +8,59 @@ All notable changes to this project are documented here. The format follows
 
 Phase 1: the core package. Nothing is published to npm yet.
 
+### Added in the pass over a second real codebase
+
+Pointing the kit at a project whose i18n layer was already built found more
+defects in the kit than in the project. These are the fixes.
+
+- **Per-target capability narrowing.** `targets.<name>.capabilities` declares the
+  ICU subset a project's own formatter really supports, so `check` fails on the
+  constructs that would throw at render time and stays quiet about the rest.
+  Narrowing only: claiming a construct the adapter cannot write is a config
+  error. The adapter registry is now the single source of known adapter names,
+  instead of a second hardcoded list that could drift from it.
+- **`policy.richText: "none"`.** For a project whose tags are resolved outside
+  the message formatter, with a grammar narrower than ICU's. Without it, a
+  correct string like `<browser>http://<LAN-IP>:8786</browser>` was reported as
+  an unmatched closing tag, because ICU accepts `LAN-IP` as a tag name and the
+  project's own parser deliberately does not.
+- **`icu-json` export adapter.** Every importer needs a matching adapter or sync
+  mode cannot close its loop: a project could have its English read in and its
+  German translated, and nowhere to put the German. Writes back the layout and
+  key the project already uses (`locales/<locale>/<area>.json`, the original
+  dotted key, `{ message, description }` or bare strings), not the kit's own.
+  `options.namespacePrefix` routes two apps in one repo to their own targets.
+
+### Fixed in that pass
+
+- **A price was corrupted on import.** The Chrome importer read the `$1` inside
+  `$14.99` as a positional placeholder and produced `{arg1}4.99`, which would
+  have shipped in every language. Chrome reads such a file the same way, so it
+  is now reported as `IMPORT_DOLLAR_AMOUNT` and the text is left untouched
+  rather than converted.
+- **A one-word plural branch was read as a swallowed placeholder.** The
+  apostrophe check scanned the raw source, where `one {it}` and `macos {Mac}`
+  look like `{it}` and `{Mac}`. It now scans the parsed literal text, where a
+  placeholder eaten by an ICU quoted literal actually lands. The real trap,
+  `l'{name}`, is still caught.
+- **An uninflected plural was an error.** `{count, plural, other {#d ago}}` is
+  legal, correct, and the right wording for an abbreviated unit. It is now
+  `PLURAL_UNINFLECTED` at `info`. Collapsing an *inflected* source to `other`
+  alone is still `PLURAL_CATEGORY_MISSING` at `error`, and a Russian
+  translation missing `few` and `many` still blocks.
+- **The importer manufactured 213 of its own errors.** `icu-json` never wrote a
+  `placeholders` block, so every imported message with an argument failed
+  `check` immediately. It now declares the arguments it finds, leaving the
+  missing *example* as the real gap. The parse falls back to a tag-ignoring one
+  so a project with its own tag grammar does not lose a whole file's
+  declarations to one message.
+- **`icu-json` reads the `{ message, description }` shape**, which hand-written
+  translators borrow from Chrome while keeping ICU text in `message`. Using the
+  Chrome importer on one of those was what corrupted the price.
+- **The translation gate judged plurals without the source.** A wording the
+  author left uninflected read as a dropped branch, sending the model back to
+  fix a string that was already right.
+
 ### Added
 
 - **Catalog format.** ICU MessageFormat in a JSON envelope, one authored source

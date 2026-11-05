@@ -62,9 +62,9 @@ const PARSER_ERROR_HINTS = new Map([
 ])
 
 /** Parse, converting the parser's own error into ours with a usable position and rule. */
-export function parseMessage(text) {
+export function parseMessage(text, { ignoreTag = false } = {}) {
   try {
-    return parse(text, { captureLocation: true })
+    return parse(text, { captureLocation: true, ignoreTag })
   } catch (err) {
     const kind = err.message
     const at = err.location?.start
@@ -91,8 +91,8 @@ export function parseMessage(text) {
  *   constructs: Record<string, boolean|number|string[]>,
  * }}
  */
-export function analyze(text) {
-  const ast = parseMessage(text)
+export function analyze(text, options = {}) {
+  const ast = parseMessage(text, options)
 
   const args = new Map()
   const argOrder = []
@@ -109,6 +109,11 @@ export function analyze(text) {
   let hasSkeleton = false
   let hasPlainNumber = false
   let hasDateTime = false
+  // Every run of plain text, joined. A placeholder swallowed by an ICU
+  // quoted literal ends up HERE rather than in `args`, which is how the
+  // apostrophe check finds it. Reading the raw source instead would also
+  // match a one-word plural branch like `one {it}`, which is structure.
+  const literalRuns = []
 
   const note = (name, kind) => {
     let entry = args.get(name)
@@ -127,6 +132,7 @@ export function analyze(text) {
     for (const node of nodes) {
       switch (node.type) {
         case TYPE.literal:
+          literalRuns.push(node.value)
           break
 
         case TYPE.pound:
@@ -198,6 +204,7 @@ export function analyze(text) {
     ast,
     args,
     argOrder,
+    literalText: literalRuns.join('\u0000'),
     tags: [...new Set(tags)].sort(),
     plurals,
     selects,
@@ -267,7 +274,7 @@ function bracedNames(text) {
 export function structuralFindings(text, analysis) {
   const findings = []
 
-  const swallowed = [...bracedNames(text)].filter((name) => !analysis.args.has(name))
+  const swallowed = [...bracedNames(analysis.literalText)].filter((name) => !analysis.args.has(name))
   if (swallowed.length > 0) {
     const quoted = /'[{}#]/.test(text)
     findings.push({

@@ -231,3 +231,107 @@ test('every adapter renders byte-identically twice', () => {
     )
   }
 })
+
+// --- icu-json: write back what the icu-json importer read -------------------
+
+test('icu-json writes the layout and key the project already uses, not the kit\'s own', () => {
+  const { files } = emit('icu-json', {
+    messages: {
+      'chooser.multi': { message: TABS, comment: 'Strip at the top.', platformNames: { web: 'chooser.multi' } },
+    },
+    mode: 'sync',
+    from: [{ importer: 'icu-json', path: 'src/locales/en/app.json', namespace: 'app' }],
+    target: { options: { namespacePrefix: '', shape: 'message-object' } },
+    translations: {
+      de: { app: { 'chooser.multi': { message: '{count, plural, one {# Tab} other {# Tabs}}', origin: 'human' } } },
+    },
+  })
+  const de = fileAt(files, 'de/app.json')
+  assert.ok(de, `expected de/app.json, got ${files.map((f) => f.path).join(', ')}`)
+  const body = JSON.parse(de.contents)
+  assert.equal(body['chooser.multi'].message, '{count, plural, one {# Tab} other {# Tabs}}')
+  // The brief travels with the source, not into each translator's own file.
+  assert.equal(body['chooser.multi'].description, undefined)
+})
+
+test('icu-json in sync mode leaves the source file alone', () => {
+  const { files } = emit('icu-json', {
+    messages: { 'a.hello': { message: 'Hello', comment: 'Greeting' } },
+    mode: 'sync',
+    from: [{ importer: 'icu-json', path: 'src/locales/en/app.json', namespace: 'app' }],
+    translations: { de: { app: { 'a.hello': { message: 'Hallo', origin: 'human' } } } },
+  })
+  assert.equal(fileAt(files, 'en/'), undefined)
+  assert.ok(fileAt(files, 'de/'))
+})
+
+test('icu-json in adopt mode writes the source too, with the comment', () => {
+  const { files } = emit('icu-json', {
+    messages: { 'a.hello': { message: 'Hello', comment: 'Greeting' } },
+    mode: 'adopt',
+  })
+  const en = fileAt(files, 'en/app.json')
+  assert.ok(en)
+  assert.equal(JSON.parse(en.contents)['a.hello'].description, 'Greeting')
+})
+
+test('icu-json splits two apps by namespace prefix and strips it from the file name', () => {
+  const spec = {
+    config: {
+      locales: { required: ['de'], optional: [] },
+      source: {
+        mode: 'sync',
+        from: [
+          { importer: 'icu-json', path: 'extension/src/locales/en/chooser.json', namespace: 'ext_chooser' },
+          { importer: 'icu-json', path: 'console/src/locales/en/devices.json', namespace: 'con_devices' },
+        ],
+      },
+      targets: {
+        ext: { adapter: 'icu-json', out: 'ext', options: { namespacePrefix: 'ext_' } },
+        con: { adapter: 'icu-json', out: 'con', options: { namespacePrefix: 'con_' } },
+      },
+    },
+    source: {
+      ext_chooser: { 'chooser.multi': { message: 'Pick', comment: 'c' } },
+      con_devices: { 'devices.row': { message: 'Row', comment: 'c' } },
+    },
+    translations: {
+      de: {
+        ext_chooser: { 'chooser.multi': { message: 'Wählen', origin: 'human' } },
+        con_devices: { 'devices.row': { message: 'Zeile', origin: 'human' } },
+      },
+    },
+  }
+  const { project } = loadProject(makeProject(spec).config)
+  const { plans } = planExport(project)
+  const paths = plans.flatMap((p) => p.files).map((f) => f.path.replace(/^.*?(?=(ext|con)\/)/, ''))
+  assert.ok(paths.includes('ext/de/chooser.json'), paths.join(', '))
+  assert.ok(paths.includes('con/de/devices.json'), paths.join(', '))
+})
+
+test('icu-json omits an untranslated key rather than filling it with English', () => {
+  const { files } = emit('icu-json', {
+    messages: {
+      'a.done': { message: 'Done', comment: 'c' },
+      'a.todo': { message: 'Not yet', comment: 'c' },
+    },
+    mode: 'sync',
+    from: [{ importer: 'icu-json', path: 'src/locales/en/app.json', namespace: 'app' }],
+    translations: { de: { app: { 'a.done': { message: 'Fertig', origin: 'human' } } } },
+  })
+  const body = JSON.parse(fileAt(files, 'de/app.json').contents)
+  assert.equal(body['a.done'].message, 'Fertig')
+  assert.equal(body['a.todo'], undefined)
+})
+
+test('icu-json plain shape is bare strings, for a catalog that holds no descriptions', () => {
+  const { files } = emit('icu-json', {
+    messages: { 'a.hello': { message: 'Hello', comment: 'c' } },
+    mode: 'sync',
+    from: [{ importer: 'icu-json', path: 'src/locales/en/app.json', namespace: 'app' }],
+    target: { options: { shape: 'plain' } },
+    translations: { de: { app: { 'a.hello': { message: 'Hallo', origin: 'human' } } } },
+  })
+  const body = JSON.parse(fileAt(files, 'de/app.json').contents)
+  assert.equal(body['a.hello'], 'Hallo')
+})

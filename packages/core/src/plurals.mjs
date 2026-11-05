@@ -57,8 +57,13 @@ export function hasZeroCategory(locale) {
  * @param {ReturnType<import('./icu.mjs').analyze>} analysis
  * @param {{ isSource?: boolean, zeroCase?: 'separate-key'|'exact-match' }} opts
  */
-export function checkCoverage(locale, analysis, { isSource = false, zeroCase = 'separate-key' } = {}) {
+export function checkCoverage(
+  locale,
+  analysis,
+  { isSource = false, zeroCase = 'separate-key', sourceAnalysis = null } = {},
+) {
   const findings = []
+  const sourceOf = (arg) => sourceAnalysis?.plurals.find((p) => p.arg === arg) ?? null
 
   for (const plural of analysis.plurals) {
     const required = categoriesFor(locale, plural.pluralType === 'ordinal' ? 'ordinal' : 'cardinal')
@@ -85,7 +90,26 @@ export function checkCoverage(locale, analysis, { isSource = false, zeroCase = '
     }
 
     const missing = required.filter((c) => !present.has(c))
-    if (missing.length) {
+    // `{n, plural, other {#d ago}}` is legal ICU and correct: the wording does
+    // not change with the number, which is how an abbreviated unit works. It is
+    // not the same mistake as a plural that lists some categories and drops
+    // one, so it does not get the same code. Reporting the deliberate choice as
+    // an error is how a checker trains a team to ignore it.
+    const uninflected = present.size === 1 && present.has('other') && plural.exact.length === 0
+    const sourceUninflected = (() => {
+      const src = sourceOf(plural.arg)
+      if (!src) return isSource
+      return src.categories.length === 1 && src.categories[0] === 'other' && src.exact.length === 0
+    })()
+
+    if (missing.length && uninflected && sourceUninflected) {
+      findings.push({
+        code: 'PLURAL_UNINFLECTED',
+        detail:
+          `{${plural.arg}} has only an "other" branch, so the wording never changes with the number. ` +
+          `Correct for an abbreviation like "5d"; wrong for a word, where ${locale} needs ${required.join(', ')}.`,
+      })
+    } else if (missing.length) {
       findings.push({
         code: 'PLURAL_CATEGORY_MISSING',
         detail:

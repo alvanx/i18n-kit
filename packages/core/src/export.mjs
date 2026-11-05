@@ -16,7 +16,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { getAdapter, capabilityFindings, resolveLocaleTag, messagesForTarget } from './adapters/index.mjs'
+import { adapterForTarget, capabilityFindings, resolveLocaleTag, messagesForTarget } from './adapters/index.mjs'
 import { writeIfChanged, checkOwnership } from './writer.mjs'
 
 /**
@@ -30,7 +30,7 @@ export function planExport(project) {
   const findings = []
 
   for (const [name, target] of config.enabledTargets()) {
-    const adapter = getAdapter(target.adapter)
+    const adapter = adapterForTarget(target)
 
     for (const locale of config.targetLocales()) {
       const resolved = resolveLocaleTag(locale, target, adapter)

@@ -25,7 +25,7 @@ import { checkCoverage, isRtl, categoriesFor } from './plurals.mjs'
 import { measure, displayWidth, hasEdgeWhitespace, FSI } from './text.mjs'
 import { severityOf, RULES } from './rules.mjs'
 import { loadGlossary, checkGlossary, looksPersonal } from './glossary.mjs'
-import { getAdapter, capabilityFindings, resolveLocaleTag, messagesForTarget } from './adapters/index.mjs'
+import { adapterForTarget, capabilityFindings, resolveLocaleTag, messagesForTarget } from './adapters/index.mjs'
 import { checkDrift } from './export.mjs'
 
 /**
@@ -251,7 +251,7 @@ function checkTargets(project, { emit }) {
   const config = project.config
 
   for (const [name, target] of config.enabledTargets()) {
-    const adapter = getAdapter(target.adapter)
+    const adapter = adapterForTarget(target)
 
     for (const locale of config.targetLocales()) {
       const resolved = resolveLocaleTag(locale, target, adapter)
@@ -312,7 +312,11 @@ function checkLocale(project, locale, { emit, glossary }) {
       for (const f of compareStructure(sourceAnalysis, analysis)) emit(f.code, f.detail, where)
     }
 
-    for (const f of checkCoverage(locale, analysis, { isSource: false, zeroCase: config.policy.zeroCase })) {
+    for (const f of checkCoverage(locale, analysis, {
+      isSource: false,
+      zeroCase: config.policy.zeroCase,
+      sourceAnalysis,
+    })) {
       emit(f.code, f.detail, where)
     }
 

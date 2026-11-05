@@ -74,6 +74,22 @@ export function importChrome(text, { namespace = 'app', file = '<chrome>' } = {}
       return `{${argName}}`
     })
 
+    // `$14.99` is a price, but Chrome reads its `$1` as a substitution, so the
+    // file is already wrong wherever this appears. Converting it would turn
+    // money into `{arg1}4.99` and ship that in every language, so it is
+    // reported and left alone. Guessing here is how a tool corrupts text that
+    // nobody rereads once it is translated.
+    message = message.replace(/\$(\d)(?=\d|[.,]\d)/g, (whole, digit) => {
+      findings.push({
+        code: 'IMPORT_DOLLAR_AMOUNT',
+        detail: `"${name}" contains ${whole}, which Chrome reads as the positional $${digit} followed by digits, not as a dollar amount. Write $$ for a literal dollar sign. Left unchanged here rather than converted, so the text is not corrupted.`,
+        ...where,
+        catalogKey: keyFor(name, namespace),
+      })
+      // Hidden behind the sentinel so the positional pass below cannot eat it.
+      return `${DOLLAR}${digit}`
+    })
+
     // A bare `$1` with no placeholders block is legal Chrome and anonymous.
     message = message.replace(/\$(\d)/g, (_, digit) => {
       const argName = `arg${digit}`

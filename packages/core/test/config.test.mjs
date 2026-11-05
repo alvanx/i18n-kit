@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveConfig, ConfigError } from '../src/config.mjs'
 import { severityOf } from '../src/rules.mjs'
+import { ADAPTERS, adapterForTarget, capabilityFindings } from '../src/adapters/index.mjs'
+import { analyze } from '../src/icu.mjs'
 
 const base = {
   schemaVersion: 1,
@@ -161,4 +163,70 @@ test('an absolute target out path is left alone', () => {
     { root: '/tmp/project', file: '/tmp/project/i18n/config.json' },
   )
   assert.equal(config.targets.android.out, '/elsewhere/res')
+})
+
+test('a target declares the ICU subset its own formatter really has', () => {
+  const cfg = load({
+    targets: {
+      ext: {
+        adapter: 'web',
+        out: 'extension/src/locales',
+        capabilities: { dateTimeArgs: false, selectordinal: false, numberDateSkeletons: false },
+      },
+    },
+  })
+  const adapter = adapterForTarget(cfg.targets.ext)
+  assert.equal(adapter.capabilities.dateTimeArgs, false)
+  assert.equal(adapter.capabilities.selectordinal, false)
+  // Untouched flags still come from the adapter.
+  assert.equal(adapter.capabilities.select, true)
+  assert.equal(adapter.capabilities.plurals, 'icu')
+  // And the stock adapter is not mutated for everyone else.
+  assert.equal(ADAPTERS.web.capabilities.dateTimeArgs, true)
+})
+
+test('a declared subset makes check fail on a construct the app would throw on', () => {
+  const cfg = load({ targets: { ext: { adapter: 'web', capabilities: { dateTimeArgs: false } } } })
+  const findings = capabilityFindings(analyze('Sent {when, date, short}'), adapterForTarget(cfg.targets.ext), {
+    targetName: 'ext',
+  })
+  assert.equal(findings.length, 1)
+  assert.match(findings[0].detail, /date/)
+  // The same message is fine for a target that did not narrow.
+  assert.deepEqual(capabilityFindings(analyze('Sent {when, date, short}'), ADAPTERS.web, { targetName: 'web' }), [])
+})
+
+test('claiming more than the adapter can write is a config error, not a surprise at export', () => {
+  assert.throws(
+    () => load({ targets: { droid: { adapter: 'android', capabilities: { richText: true } } } }),
+    (err) => err instanceof ConfigError && /cannot express it/.test(err.message),
+  )
+})
+
+test('a capability that decides how files are written is not a project setting', () => {
+  assert.throws(
+    () => load({ targets: { ext: { adapter: 'web', capabilities: { plurals: 'none' } } } }),
+    (err) => err instanceof ConfigError && /belongs to the adapter/.test(err.message),
+  )
+  assert.throws(
+    () => load({ targets: { ext: { adapter: 'web', capabilities: { nope: false } } } }),
+    (err) => err instanceof ConfigError && /Not a capability/.test(err.message),
+  )
+})
+
+test('nesting may only be declared shallower', () => {
+  assert.equal(adapterForTarget(load({ targets: { ext: { adapter: 'web', capabilities: { nesting: 1 } } } }).targets.ext).capabilities.nesting, 1)
+  assert.throws(
+    () => load({ targets: { ext: { adapter: 'web', capabilities: { nesting: 99 } } } }),
+    (err) => err instanceof ConfigError && /deeper than/.test(err.message),
+  )
+})
+
+test('a project whose tags live outside the formatter can say so', () => {
+  assert.equal(load().policy.richText, 'icu')
+  assert.equal(load({ policy: { richText: 'none' } }).policy.richText, 'none')
+  assert.throws(
+    () => load({ policy: { richText: 'html' } }),
+    (err) => err instanceof ConfigError && /must be "icu" or "none"/.test(err.message),
+  )
 })

@@ -149,7 +149,7 @@ export class Project {
       return cached
     }
     try {
-      const result = analyze(text)
+      const result = analyze(text, { ignoreTag: this.config.policy.richText === 'none' })
       this._analysisCache.set(text, result)
       return result
     } catch (err) {

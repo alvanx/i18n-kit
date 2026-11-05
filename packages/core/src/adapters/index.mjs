@@ -23,6 +23,7 @@ import web from './web.mjs'
 import android from './android.mjs'
 import chrome from './chrome.mjs'
 import apple from './apple.mjs'
+import icuJson from './icu-json.mjs'
 
 /** @type {Record<string, Adapter>} */
 export const ADAPTERS = {
@@ -30,6 +31,7 @@ export const ADAPTERS = {
   android,
   chrome,
   apple,
+  'icu-json': icuJson,
 }
 
 export function getAdapter(id) {
@@ -38,6 +40,46 @@ export function getAdapter(id) {
     throw new Error(`Unknown adapter "${id}". Available: ${Object.keys(ADAPTERS).join(', ')}.`)
   }
   return adapter
+}
+
+/**
+ * The capability flags a project may narrow for one of its own targets.
+ *
+ * A hand-written formatter is the normal case, not the exception: most projects
+ * carry a few hundred lines that read the ICU subset they actually needed, and
+ * the full-ICU default would then pass a construct the app throws on at render
+ * time. Declaring the subset moves that failure from a user's screen to
+ * `check`.
+ *
+ * Narrowing only. Claiming a construct the adapter cannot write would be a
+ * promise the writer breaks, so widening is a config error rather than a
+ * surprise at export. The flags that decide HOW a file is written (`plurals`,
+ * `placeholders`) are not here: those are the adapter's job, not a project's.
+ */
+export const NARROWABLE = new Set([
+  'exactMatch',
+  'select',
+  'selectordinal',
+  'offset',
+  'repeatedPlaceholders',
+  'numberArgs',
+  'dateTimeArgs',
+  'numberDateSkeletons',
+  'richText',
+  'nesting',
+])
+
+/**
+ * The adapter a target actually renders through: the registered one, with the
+ * target's declared subset applied.
+ *
+ * @param {{adapter: string, capabilities?: Record<string, unknown>}} target
+ */
+export function adapterForTarget(target) {
+  const adapter = getAdapter(target.adapter)
+  const narrowed = target.capabilities
+  if (!narrowed || Object.keys(narrowed).length === 0) return adapter
+  return { ...adapter, capabilities: { ...adapter.capabilities, ...narrowed } }
 }
 
 /**

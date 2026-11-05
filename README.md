@@ -148,7 +148,28 @@ Argument positions always come from the **source** message, never the translatio
 
 ## What works today
 
-Built, tested, and exercised end to end on a real Android project: the four importers, the catalog with its three-hash model, the check gate, the four export adapters, the translation engine with its validation-and-retry loop, review, the audited retranslate path, pseudo-locales, and the key lifecycle commands. 240 tests.
+Built, tested, and exercised end to end on two real projects: the five importers, the catalog with its three-hash model, the check gate, the five export adapters, the translation engine with its validation-and-retry loop, review, the audited retranslate path, pseudo-locales, and the key lifecycle commands. 269 tests.
+
+### Your own formatter is the normal case
+
+Most projects that already ship have a few hundred lines that read the ICU subset they actually needed, not a full implementation. Pointing a checker with full-ICU assumptions at one of those reports errors against correct code, and the team learns to ignore the report.
+
+So a target declares the subset it really has, and `check` fails on exactly the constructs the app would throw on:
+
+```json
+"targets": {
+  "extension": {
+    "adapter": "icu-json",
+    "out": "extension/src/locales",
+    "options": { "namespacePrefix": "ext_", "shape": "message-object" },
+    "capabilities": { "selectordinal": false, "dateTimeArgs": false, "numberDateSkeletons": false }
+  }
+}
+```
+
+Narrowing only. Claiming a construct the adapter cannot write is a config error, not a surprise at export.
+
+`policy.richText: "none"` is the matching setting for a project whose `<b>…</b>` is resolved by its own layer outside the message formatter. Without it, a tag grammar narrower than ICU's reports parse errors on strings that are perfectly correct.
 
 Not built:
 
@@ -156,10 +177,11 @@ Not built:
 - **No string extraction from source code.** An importer reads a string *file*. It does not find hardcoded strings in Swift or TypeScript, and heuristics for that sweep up log lines and miss template literals. Moving them out is manual work.
 - **No review UI.** Corrections happen by editing a JSON file, which is fine for a developer and useless for a native speaker you want help from.
 - **Only one provider adapter.** The engine takes any object with `translateBatch` and `estimate`; Anthropic is the one that ships.
+- **No iOS or Android source-code extraction**, same reason as above: `.xcstrings` and `strings.xml` are read, Swift and Kotlin literals are not.
 
 ## What it does not check
 
-It proves a placeholder survived, a plural has the right branches for the language, a product name was left alone, and the result still parses. It cannot tell you a German sentence is stiff, or that the Russian is correct but reads like a translation. That needs a person who speaks it. Everything here is in service of making that person's time worth spending, not of replacing them.
+It proves a placeholder survived, a plural has the right branches for the language, a product name was left alone, and the result still parses. A plural with only an `other` branch is a note rather than an error, because `{n, plural, other {#d ago}}` is a deliberate count-invariant wording and reporting it as broken is how a checker teaches a team to skip the report. Collapsing an inflected source to `other` is still an error. It cannot tell you a German sentence is stiff, or that the Russian is correct but reads like a translation. That needs a person who speaks it. Everything here is in service of making that person's time worth spending, not of replacing them.
 
 ## Content classes
 

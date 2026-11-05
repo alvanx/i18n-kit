@@ -82,6 +82,10 @@ export const RULES = {
     severity: 'error',
     desc: 'The target language needs a CLDR plural category this translation does not provide. Russian needs four, Arabic six.',
   },
+  PLURAL_UNINFLECTED: {
+    severity: 'info',
+    desc: 'A plural with only an "other" branch. Right for an abbreviated unit, wrong for a word.',
+  },
   PLURAL_STRUCTURE_MISMATCH: {
     severity: 'error',
     desc: 'The translation flattened a plural into a plain placeholder, or introduced one the source does not have.',

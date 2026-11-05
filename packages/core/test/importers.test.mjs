@@ -197,3 +197,68 @@ test("react-intl's extracted shape brings its description along as the comment",
   )
   assert.equal(result.entries[0].entry.comment, 'Primary button')
 })
+
+test('chrome: a dollar amount is reported, not turned into a placeholder', () => {
+  const { entries, findings } = importChrome(
+    JSON.stringify({ offer: { message: 'then $14.99 a year or $49.99 once', description: 'prices' } }),
+    { namespace: 'app' },
+  )
+  assert.equal(entries[0].entry.message, 'then $14.99 a year or $49.99 once')
+  const codes = findings.map((f) => f.code)
+  assert.deepEqual(codes, ['IMPORT_DOLLAR_AMOUNT', 'IMPORT_DOLLAR_AMOUNT'])
+  assert.equal(entries[0].entry.placeholders, undefined)
+})
+
+test('chrome: a lone positional is still a placeholder', () => {
+  const { entries, findings } = importChrome(
+    JSON.stringify({ greet: { message: 'Hello $1' } }),
+    { namespace: 'app' },
+  )
+  assert.equal(entries[0].entry.message, 'Hello {arg1}')
+  assert.equal(findings[0].code, 'IMPORT_UNNAMED_ARG')
+})
+
+test('icu-json: reads the message/description shape without touching dollars', () => {
+  const { entries } = importIcuJson(
+    JSON.stringify({
+      'send.sent': {
+        message: '{count, plural, one {Sent # tab} other {Sent # tabs}}',
+        description: 'Toast after a send.',
+      },
+      'offer.body': { message: 'then $14.99 a year', description: 'price' },
+    }),
+    { namespace: 'ext' },
+  )
+  const sent = entries.find((e) => e.entry.platformNames.web === 'send.sent')
+  assert.equal(sent.entry.message, '{count, plural, one {Sent # tab} other {Sent # tabs}}')
+  assert.equal(sent.entry.comment, 'Toast after a send.')
+  const offer = entries.find((e) => e.entry.platformNames.web === 'offer.body')
+  assert.equal(offer.entry.message, 'then $14.99 a year')
+})
+
+test('icu-json: a group that happens to contain more than a message stays a group', () => {
+  const { entries } = importIcuJson(
+    JSON.stringify({ outer: { message: 'Hi', nested: { deep: 'There' } } }),
+    { namespace: 'ext' },
+  )
+  const paths = entries.map((e) => e.entry.platformNames.web).sort()
+  assert.deepEqual(paths, ['outer.message', 'outer.nested.deep'])
+})
+
+test('icu-json declares the arguments it finds, so a fresh import does not fail its own check', () => {
+  const { entries } = importIcuJson(
+    JSON.stringify({ 'send.sent': { message: 'Sent {count, plural, one {# tab} other {# tabs}} to {device}' } }),
+    { namespace: 'ext' },
+  )
+  assert.deepEqual(Object.keys(entries[0].entry.placeholders).sort(), ['count', 'device'])
+  // Declared, not described: the example is still a real gap.
+  assert.deepEqual(entries[0].entry.placeholders.device, {})
+})
+
+test('icu-json keeps the declarations when the project owns the tag grammar', () => {
+  const { entries } = importIcuJson(
+    JSON.stringify({ hint: { message: 'use <browser>http://<LAN-IP>:8786</browser> for {device}' } }),
+    { namespace: 'ext' },
+  )
+  assert.deepEqual(Object.keys(entries[0].entry.placeholders), ['device'])
+})

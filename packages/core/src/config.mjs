@@ -15,6 +15,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { resolve, isAbsolute } from 'node:path'
 import { isKnownRule, RULES } from './rules.mjs'
 import { IMPORTERS } from './importers/index.mjs'
+import { ADAPTERS, getAdapter, NARROWABLE } from './adapters/index.mjs'
 
 export const CONFIG_FILENAME = 'i18n/config.json'
 
@@ -37,7 +38,9 @@ const DEFAULT_PATHS = {
   out: 'build/i18n',
 }
 
-const KNOWN_ADAPTERS = new Set(['web', 'chrome', 'android', 'apple'])
+// Derived, not listed: a second copy of the registry is a copy that goes stale
+// the first time someone adds an adapter and only edits one of the two.
+const KNOWN_ADAPTERS = new Set(Object.keys(ADAPTERS))
 
 class ConfigError extends Error {
   constructor(message, { hint } = {}) {
@@ -129,6 +132,12 @@ export function resolveConfig(raw, { root = process.cwd(), file = '<inline>' } =
     defaultClass: raw.policy?.defaultClass ?? 'ui',
     zeroCase: raw.policy?.zeroCase ?? 'separate-key',
     placeholderExamples: raw.policy?.placeholderExamples ?? 'optional',
+    // Whether <b>…</b> in a message is ICU rich text, or plain characters that
+    // some other layer deals with. Many projects keep their own tag pass
+    // outside the formatter, with a narrower grammar than ICU's. Parsing those
+    // as ICU tags reports errors against messages that are perfectly correct,
+    // and the team stops reading the report.
+    richText: validateRichText(raw.policy?.richText ?? 'icu', file),
     expansionBudget: { ...DEFAULT_EXPANSION_BUDGET, ...(raw.policy?.expansionBudget ?? {}) },
     localeExpansionOverride: raw.policy?.localeExpansionOverride ?? {},
   }
@@ -337,6 +346,15 @@ function resolveTargets(raw, { knownLocales, file, root }) {
       name,
       adapter: target.adapter,
       enabled: target.enabled ?? true,
+      // The subset of the adapter's capabilities this project's runtime really
+      // has. Empty for a stock platform target; a hand-written formatter
+      // declares what it left out, so `check` fails on a construct the app
+      // would throw on instead of shipping it.
+      capabilities: resolveCapabilities(target.capabilities, {
+        adapterId: target.adapter,
+        targetName: name,
+        file,
+      }),
       // Resolved against the project root, like every path in `paths`. Left
       // relative it would land wherever the command happened to be run from,
       // which for a target whose output belongs inside the repo means files
@@ -348,6 +366,81 @@ function resolveTargets(raw, { knownLocales, file, root }) {
   }
 
   return out
+}
+
+/**
+ * Read a target's declared capability subset.
+ *
+ * Narrowing only, and that asymmetry is the point. A project saying "my
+ * formatter has no date argument" costs nothing if it is wrong: `check` reports
+ * a construct that would in fact have worked. A project claiming a construct
+ * its adapter cannot write produces a file the platform mis-renders, in a
+ * language the team does not read. So the first is allowed and the second is a
+ * config error.
+ */
+function resolveCapabilities(raw, { adapterId, targetName, file }) {
+  if (raw === undefined) return {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new ConfigError(`${file}: targets.${targetName}.capabilities must be an object`)
+  }
+
+  const base = getAdapter(adapterId).capabilities
+  const out = {}
+
+  for (const [flag, value] of Object.entries(raw)) {
+    if (!NARROWABLE.has(flag)) {
+      const known = flag in base
+      throw new ConfigError(
+        `${file}: targets.${targetName}.capabilities."${flag}" cannot be set here`,
+        {
+          hint: known
+            ? `"${flag}" decides how the adapter writes its files, so it belongs to the adapter. Declarable: ${[...NARROWABLE].join(', ')}.`
+            : `Not a capability. Declarable: ${[...NARROWABLE].join(', ')}.`,
+        },
+      )
+    }
+
+    if (flag === 'nesting') {
+      if (!Number.isInteger(value) || value < 0) {
+        throw new ConfigError(
+          `${file}: targets.${targetName}.capabilities.nesting must be a whole number, got ${JSON.stringify(value)}`,
+        )
+      }
+      if (value > base.nesting) {
+        throw new ConfigError(
+          `${file}: targets.${targetName}.capabilities.nesting is ${value}, deeper than the ${adapterId} adapter's ${base.nesting}`,
+          { hint: 'A target may declare less than its adapter supports, never more.' },
+        )
+      }
+      out.nesting = value
+      continue
+    }
+
+    if (typeof value !== 'boolean') {
+      throw new ConfigError(
+        `${file}: targets.${targetName}.capabilities."${flag}" must be true or false, got ${JSON.stringify(value)}`,
+      )
+    }
+    if (value === true && base[flag] === false) {
+      throw new ConfigError(
+        `${file}: targets.${targetName}.capabilities."${flag}" is true, but the ${adapterId} adapter cannot express it`,
+        { hint: 'A target may declare less than its adapter supports, never more. Remove the flag.' },
+      )
+    }
+    out[flag] = value
+  }
+
+  return out
+}
+
+function validateRichText(value, file) {
+  if (value !== 'icu' && value !== 'none') {
+    throw new ConfigError(
+      `${file}: policy.richText must be "icu" or "none" (got ${JSON.stringify(value)})`,
+      { hint: '"icu" parses <b>…</b> as rich text. "none" treats angle brackets as ordinary characters, for a project whose tags are handled outside the message formatter.' },
+    )
+  }
+  return value
 }
 
 function validateSeverity(raw, file) {

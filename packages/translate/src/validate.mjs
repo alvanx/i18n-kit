@@ -60,9 +60,14 @@ export function validateCandidate({ candidate, sourceText, locale, entry, glossa
     return { blocking, advisory }
   }
 
+  // The translation has to be judged under the same grammar as the source, or
+  // a project whose tags live outside the formatter sees the model blamed for
+  // copying the source faithfully.
+  const icu = { ignoreTag: config.policy?.richText === 'none' }
+
   let sourceAnalysis
   try {
-    sourceAnalysis = analyze(sourceText)
+    sourceAnalysis = analyze(sourceText, icu)
   } catch (err) {
     // The source itself is broken. Not this translation's fault, and not
     // something a retry can fix.
@@ -71,7 +76,7 @@ export function validateCandidate({ candidate, sourceText, locale, entry, glossa
 
   let analysis
   try {
-    analysis = analyze(candidate)
+    analysis = analyze(candidate, icu)
   } catch (err) {
     fail(
       'ICU_PARSE',
@@ -98,6 +103,10 @@ export function validateCandidate({ candidate, sourceText, locale, entry, glossa
   for (const finding of checkCoverage(locale, analysis, {
     isSource: false,
     zeroCase: config.policy?.zeroCase ?? 'separate-key',
+    // Without the source, a wording the author deliberately left uninflected
+    // ("5d ago") reads as a dropped branch, and the model is sent back to fix
+    // a string that was already right.
+    sourceAnalysis,
   })) {
     // A missing category is a wrong string for real counts. An extra one is
     // dead weight, so it is worth saying but not worth another round trip.

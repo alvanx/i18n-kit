@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { analyze, contractOf, structuralFindings, compareStructure, IcuError } from '../src/icu.mjs'
+import { checkCoverage } from '../src/plurals.mjs'
+import { severityOf } from '../src/rules.mjs'
 
 const codes = (findings) => findings.map((f) => f.code)
 
@@ -183,4 +185,71 @@ test('a reordered translation is fine as long as the set matches', () => {
   // adapters from scrambling arguments in reordering languages.
   assert.deepEqual(a.argOrder, ['what', 'device'])
   assert.deepEqual(ja.argOrder, ['device', 'what'])
+})
+
+test('a one-word plural branch is structure, not a swallowed placeholder', () => {
+  const text = 'Open Tabsend to send {count, plural, one {it} other {them}} to another device.'
+  assert.deepEqual(structuralFindings(text, analyze(text)), [])
+})
+
+test('a one-word select branch is structure too', () => {
+  const text = '{platform, select, macos {Mac} android {Android} other {This device}}'
+  assert.deepEqual(structuralFindings(text, analyze(text)), [])
+})
+
+test('a placeholder an apostrophe really did eat is still caught', () => {
+  const text = "l'{name} a envoyé"
+  const findings = structuralFindings(text, analyze(text))
+  assert.equal(findings.length, 1)
+  assert.equal(findings[0].code, 'ICU_APOSTROPHE_EATS_ARG')
+  assert.match(findings[0].detail, /\{name\}/)
+  assert.match(findings[0].detail, /U\+2019/)
+})
+
+test('with tags off, angle brackets are ordinary characters', () => {
+  // Tabsend's own convention: <browser>…</browser> is a tag its DOM layer
+  // resolves, and <LAN-IP> is literal text. Read as ICU rich text, the
+  // hyphenated name opens a tag that never closes.
+  const text = 'use <browser>http://<LAN-IP>:8786</browser> for that'
+  assert.throws(() => analyze(text), IcuError)
+  const analysis = analyze(text, { ignoreTag: true })
+  assert.deepEqual(analysis.tags, [])
+  assert.deepEqual(structuralFindings(text, analysis), [])
+})
+
+test('with tags on, rich text is still parsed as rich text', () => {
+  assert.deepEqual(analyze('see <link>the docs</link>').tags, ['link'])
+  assert.deepEqual(analyze('see <link>the docs</link>', { ignoreTag: true }).tags, [])
+})
+
+test('an "other"-only plural in the source is a note, not an error', () => {
+  const analysis = analyze('{count, plural, other {#d ago}}')
+  const findings = checkCoverage('en', analysis, { isSource: true })
+  assert.deepEqual(findings.map((f) => f.code), ['PLURAL_UNINFLECTED'])
+  assert.equal(severityOf('PLURAL_UNINFLECTED'), 'info')
+})
+
+test('an uninflected source stays uninflected in a four-form language', () => {
+  const source = analyze('{count, plural, other {#d ago}}')
+  const ru = analyze('{count, plural, other {# д назад}}')
+  assert.deepEqual(
+    checkCoverage('ru', ru, { sourceAnalysis: source }).map((f) => f.code),
+    ['PLURAL_UNINFLECTED'],
+  )
+})
+
+test('collapsing an inflected source to "other" is still an error', () => {
+  const source = analyze('{count, plural, one {# tab} other {# tabs}}')
+  const ru = analyze('{count, plural, other {# вкладок}}')
+  const codes = checkCoverage('ru', ru, { sourceAnalysis: source }).map((f) => f.code)
+  assert.ok(codes.includes('PLURAL_CATEGORY_MISSING'))
+  assert.equal(severityOf('PLURAL_CATEGORY_MISSING'), 'error')
+})
+
+test('a Russian translation missing few and many is still an error', () => {
+  const source = analyze('{count, plural, one {# tab} other {# tabs}}')
+  const ru = analyze('{count, plural, one {# вкладка} other {# вкладок}}')
+  const findings = checkCoverage('ru', ru, { sourceAnalysis: source })
+  assert.deepEqual(findings.map((f) => f.code), ['PLURAL_CATEGORY_MISSING'])
+  assert.match(findings[0].detail, /missing few, many/)
 })

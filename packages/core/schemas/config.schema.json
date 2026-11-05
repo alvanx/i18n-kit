@@ -280,6 +280,44 @@
           "type": "object",
           "additionalProperties": true,
           "description": "Adapter-specific. Android takes localeFormat (bcp47 or legacy) and resourcePrefix. Chrome takes pluralStrategy (explode or icu-runtime)."
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "The ICU subset this target’s own formatter really supports, for a project with a hand-written translator rather than a stock platform runtime. Narrowing only: claiming a flag the adapter cannot express is a config error.",
+          "additionalProperties": false,
+          "properties": {
+            "exactMatch": {
+              "type": "boolean"
+            },
+            "select": {
+              "type": "boolean"
+            },
+            "selectordinal": {
+              "type": "boolean"
+            },
+            "offset": {
+              "type": "boolean"
+            },
+            "repeatedPlaceholders": {
+              "type": "boolean"
+            },
+            "numberArgs": {
+              "type": "boolean"
+            },
+            "dateTimeArgs": {
+              "type": "boolean"
+            },
+            "numberDateSkeletons": {
+              "type": "boolean"
+            },
+            "richText": {
+              "type": "boolean"
+            },
+            "nesting": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     }
