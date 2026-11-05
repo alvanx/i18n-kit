@@ -94,6 +94,16 @@ Would translate 114 string(s): 16,143 input tokens, roughly 5,381 output, about 
 
 Then `npx i18n translate --max-spend 1` and `npx i18n export`. Or `npx i18n sync`, which is all four in order and stops if the source has problems, because a bad source message produces a bad translation in every language at once.
 
+## Use it from Claude Code
+
+There is a skill in [`skill/`](skill/) that drives all of this, so you can ask for the outcome instead of remembering commands. Install it once per machine:
+
+```bash
+ln -s "$PWD/skill/localize" ~/.claude/skills/localize
+```
+
+Then, in any project: "add German to this app", "check our Russian", "is this localization any good?". The skill works out whether it is a first run or a routine one, picks the importer by looking at the files rather than at their names, reads the project's own formatter before declaring what it can render, prices every translation run before spending anything, and reports in plain language rather than rule codes.
+
 ## A worked example
 
 [`examples/android-sync/`](examples/android-sync/) is a complete one, with real
@@ -149,6 +159,8 @@ Argument positions always come from the **source** message, never the translatio
 ## What works today
 
 Built, tested, and exercised end to end on two real projects: the five importers, the catalog with its three-hash model, the check gate, the five export adapters, the translation engine with its validation-and-retry loop, review, the audited retranslate path, pseudo-locales, and the key lifecycle commands. 269 tests.
+
+There is also a Claude Code skill in [`skill/`](skill/) that drives the whole thing, including the first-run setup that is easy to get wrong.
 
 ### Your own formatter is the normal case
 

@@ -8,6 +8,25 @@ All notable changes to this project are documented here. The format follows
 
 Phase 1: the core package. Nothing is published to npm yet.
 
+### Added
+
+- **A Claude Code skill**, in `skill/localize/`. Symlink it into
+  `~/.claude/skills/` once and every project on the machine can be localized by
+  asking for the outcome instead of a command. It carries the first-run
+  knowledge that is easy to get wrong: pick the importer by the file's shape and
+  never by its name, read the project's own formatter before declaring
+  capabilities, decide `policy.richText`, and prove the config produces findings
+  about the code rather than about itself before showing anyone a number. Its
+  `scripts/i18n.sh` resolves the toolkit from `I18N_KIT_HOME`, the project's
+  `node_modules`, the repo it ships in, the usual working copy, or a fresh
+  shallow clone, so it also works on a machine that has never seen the toolkit.
+
+### Fixed
+
+- The `$schema` and `$id` URLs that `init` wrote into every scaffolded config
+  pointed at a repository that does not exist. They now point at the real one,
+  so an editor can actually fetch the schema and complete the config.
+
 ### Added in the pass over a second real codebase
 
 Pointing the kit at a project whose i18n layer was already built found more
