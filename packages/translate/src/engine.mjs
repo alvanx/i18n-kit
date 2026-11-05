@@ -34,7 +34,14 @@ export class SpendLimitReached extends Error {
   }
 }
 
-function readStyleGuide(config, locale) {
+/**
+ * The style guide, with any `## <locale>` section promoted for this language.
+ *
+ * Exported because the handoff path builds the same brief without the engine:
+ * two readers would drift, and the one that drifted would silently drop the
+ * formality ruling, which is the single most noticeable thing in the file.
+ */
+export function readStyleGuide(config, locale) {
   const path = config.paths.style
   if (!path || !existsSync(path)) return null
   const text = readFileSync(path, 'utf8')

@@ -1,13 +1,15 @@
 ---
 name: localize
-description: Add, repair, or audit a language in any codebase using i18n-kit. Use when the user asks to translate an app or ship it in another language, add a locale ("add German", "localize this in Spanish"), check or fix existing translations, audit localization quality, find missing or broken strings, or review localization that an agent produced. Also use before shipping a language, and to wire a localization gate into CI. Handles Android strings.xml, Chrome extension _locales, Apple .xcstrings and .strings, and ICU JSON catalogs.
+description: Add, repair, or audit a language in any codebase using i18n-kit, with no API key and no extra cost. Use when the user asks to translate an app or ship it in another language, add a locale ("add German", "localize this in Spanish"), check or fix existing translations, audit localization quality, find missing or broken strings, or review localization that an agent produced. Also use before shipping a language, and to wire a localization gate into CI. Handles Android strings.xml, Chrome extension _locales, Apple .xcstrings and .strings, and ICU JSON catalogs.
 ---
 
 # localize
 
-Drives **i18n-kit**: it reads the string files a project already has, fills the gaps with a translation provider, mechanically validates every result, and writes the native files back.
+Drives **i18n-kit**: it reads the string files a project already has, works out what is missing, hands you the context needed to translate it, mechanically validates what you write, and writes the native files back.
 
-The one idea worth holding onto: it never ships a translation it could not verify. A string that fails validation is stored with no text at all, so it falls back to the source language and shows up in `check`. An empty slot is a visible gap. A plausible wrong string is an invisible one.
+**You are the translator.** The default path needs no API key and costs nothing beyond this session, because the toolkit does the parts a model is bad at (knowing which plural forms Russian needs, proving a placeholder survived) and leaves the translating to you. There is a paid provider path as well, covered below, but it is the exception.
+
+The one idea worth holding onto: nothing ships that could not be verified. A string that fails validation is stored with no text at all, so it falls back to the source language and shows up in `check`. An empty slot is a visible gap. A plausible wrong string is an invisible one.
 
 ## How to invoke it
 
@@ -36,28 +38,36 @@ bash ~/.claude/skills/localize/scripts/i18n.sh check
 
 ### Add a language
 
+**You do the translating.** There is no API key and no extra bill: the toolkit writes a brief, you translate it, and it validates your work. Do not reach for `translate` (the paid path) unless the user explicitly asks for it.
+
 1. Add the locale tag to `locales.required` in `i18n/config.json`.
-2. `import` so the catalog matches the source files as they are right now.
-3. `translate --locales <tag> --dry-run`. Show the user the cost. Wait for a yes.
-4. `translate --locales <tag> --max-spend <just above the estimate>`
-5. `export`
-6. `check`, then report.
+2. `import`, so the catalog matches the source files as they are right now.
+3. `handoff --locales <tag>`. This writes `i18n/handoff/<tag>/` with a `README.md` of standing rules, one `batch-NN-*.md` brief per screen, and a matching `.answers.json` for each.
+4. **Read every brief.** They carry what makes a translation correct rather than merely fluent: what the string is for, what each placeholder holds, the wording already settled on that screen, the glossary terms in play, the project's style guide, and the exact plural categories the language needs. Do not translate from the source text alone when the brief is sitting there.
+5. Fill in each `.answers.json`: replace `"message": null` with your translation. Leave `null` for anything you cannot do confidently, which is then reported as a gap rather than guessed at. `note` stays `null` unless the *source* has a problem a reviewer should know about, and then it is `{"kind": "ambiguous"|"idiom"|"cultural"|"untranslatable-wordplay", "text": "..."}`.
+6. `ingest --locale <tag> --model <your own model id>`.
+7. **Read the rejections and fix them.** Each one names exactly what is wrong. Edit only those entries in the answer files, then run `ingest` again. Repeat until nothing is rejected. This loop is the whole point: expect to be rejected on your first pass at any language with more plural forms than English.
+8. `check`, then `export`.
+
+Being rejected is normal and is not a failure to report apologetically. Say what was caught and what you corrected.
 
 ### Repair a language that already exists
 
-Use `review --locales <tag>`, not `translate`. `translate` skips anything already translated, so it will do nothing. `review` sends only the strings that have findings, and sends the finding along as the correction to make.
+`handoff --review --locales <tag>` queues only the strings `check` finds problems in, rather than every untranslated one. Then the same fill-and-ingest loop.
 
 ### Before a release
 
 `check --release` turns on the stricter severities that only matter when shipping.
 
-### Audit work an agent did
+### Audit work someone else did
 
-`import` then `check`. This is the highest-value use of the skill and what it is for: an agent can write whatever translation it likes, and still cannot get a Russian plural with two branches or a string that dropped its `{device}` past the gate.
+`import` then `check`. This is the highest-value use of the skill: an agent can write whatever translation it likes, and still cannot get a Russian plural with two branches or a string that dropped its `{device}` past the gate.
 
-## Money
+## The paid path, which is the exception
 
-Never run `translate`, `review`, or `retranslate` without a `--dry-run` first and the user's explicit yes to the number. Always pass `--max-spend`. The API key is read from `ANTHROPIC_API_KEY` in the environment and nowhere else; if it is missing, say so and stop rather than engineering around it.
+`translate` calls a provider and bills per token. It needs `ANTHROPIC_API_KEY` in the environment. Use it only when the user asks for it, or when the volume is genuinely too large to do in-session (several thousand strings).
+
+If you do use it: `translate --dry-run` first, show the user the cost, wait for a yes, and always pass `--max-spend`. If the key is missing, say so and offer `handoff` instead rather than engineering around it.
 
 ## Never
 
@@ -65,7 +75,8 @@ Never run `translate`, `review`, or `retranslate` without a `--dry-run` first an
 - **Never fill a missing translation with source-language text** to make `check` quieter.
 - **Never overwrite a human translation.** That takes `retranslate --reason`, which is the user's call, not yours.
 - **Never silence a finding by loosening the config** until you have read the project's own code and confirmed the config was wrong. If a finding looks like the project's fault, verify one instance in the code before you say so out loud.
-- **Never run `translate` on a catalog that still has source errors.** Fix the English first, or you pay to translate text that is already broken.
+- **Never translate a catalog that still has source errors.** Fix the English first: a broken source message produces a broken translation in every language at once.
+- **Never edit a brief.** `handoff` overwrites them on the next run. Your work goes in the `.answers.json` files.
 
 ## Reporting back
 

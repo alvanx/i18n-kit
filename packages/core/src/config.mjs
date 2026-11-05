@@ -35,6 +35,7 @@ const DEFAULT_PATHS = {
   glossary: 'i18n/glossary.json',
   style: 'i18n/style.md',
   audit: 'i18n/audit.log',
+  handoff: 'i18n/handoff',
   out: 'build/i18n',
 }
 

@@ -119,20 +119,55 @@
     },
     "provenance": {
       "type": ["object", "null"],
-      "additionalProperties": false,
-      "required": ["provider", "model", "promptVersion", "at"],
+      "description": "Where the current text came from, discriminated on `kind`. Model and prompt version are recorded but deliberately NOT hashed: hashing them would make one prompt tweak silently rebill the entire catalog. Regenerating after a model change is an explicit command.",
+      "required": ["kind"],
       "properties": {
-        "provider": { "type": "string" },
-        "model": { "type": "string" },
-        "promptVersion": { "type": "integer" },
-        "at": {
-          "type": "string",
-          "format": "date",
-          "description": "A date, not a timestamp, and restamped only when the message actually changes. Keeps an audit trail without churning diffs on every run."
-        },
-        "runId": { "type": "string" }
+        "kind": {
+          "enum": ["provider", "agent", "memory"],
+          "description": "'provider' is a paid API call. 'agent' is a coding agent that filled in an `i18n handoff` brief, which costs nothing extra and passes the same validation. 'memory' is a string reused from an identical source text already settled in this locale."
+        }
       },
-      "description": "Model and prompt version are recorded but deliberately NOT hashed. Hashing them would make one prompt tweak silently rebill the entire catalog. Regenerating after a model change is an explicit command."
+      "oneOf": [
+        {
+          "required": ["kind", "provider", "model", "at"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "provider" },
+            "provider": { "type": "string" },
+            "model": { "type": "string" },
+            "promptVersion": { "type": "integer" },
+            "attempt": {
+              "type": ["integer", "null"],
+              "description": "Which try produced this text. A 2 means the first answer failed validation and the retry carried the reason."
+            },
+            "at": {
+              "type": "string",
+              "format": "date",
+              "description": "A date, not a timestamp, and restamped only when the message actually changes. Keeps an audit trail without churning diffs on every run."
+            },
+            "runId": { "type": "string" }
+          }
+        },
+        {
+          "required": ["kind", "model", "at"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "agent" },
+            "model": { "type": "string", "description": "What the agent reported itself as, or 'agent' when it did not say." },
+            "promptVersion": { "type": "integer" },
+            "at": { "type": "string", "format": "date" },
+            "runId": { "type": "string" }
+          }
+        },
+        {
+          "required": ["kind", "from"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "memory" },
+            "from": { "type": "string", "description": "The key whose settled translation was reused." }
+          }
+        }
+      ]
     }
   }
 }

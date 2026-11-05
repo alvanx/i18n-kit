@@ -24,7 +24,7 @@
 import { parseArgs } from 'node:util'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { loadConfig, CONFIG_FILENAME } from '../src/config.mjs'
 import { loadProject } from '../src/catalog.mjs'
 import { check } from '../src/check.mjs'
@@ -41,7 +41,9 @@ const USAGE = `i18n-kit — one authored catalog, every platform's string files
   i18n init                             scaffold i18n/ in this project
   i18n import [--dry-run]               read the platform string files into the catalog
   i18n check [options]                  validate everything (no network)
-  i18n translate [options]              fill the gaps (needs a provider and a key)
+  i18n translate [options]              fill the gaps with a paid provider
+  i18n handoff [options]                write briefs for an agent to translate (no key, no spend)
+  i18n ingest --locale <tag>            validate an agent's answers and write what passes
   i18n review [options]                 fix an existing locale's findings
   i18n export [--dry-run]               write every target's files
   i18n sync [options]                   import, check, translate, export
@@ -55,6 +57,13 @@ const USAGE = `i18n-kit — one authored catalog, every platform's string files
   i18n touch <key> --locale <tag> [--reason <why>]
   i18n retranslate --key <key> --locale <tag> --reason <why>
   i18n normalize
+
+handoff / ingest options
+  --locales <a,b>    only these locales
+  --review           only strings that check reports problems in, not untranslated ones
+  --dir <path>       where the briefs live (default: paths.handoff, i18n/handoff)
+  --model <id>       recorded as provenance on what ingest writes
+  --batch-size <n>   strings per brief (default 20)
 
 translate / review / sync options
   --locales <a,b>    only these locales (default: every configured target)
@@ -543,6 +552,40 @@ function reportTranslation(report, translate) {
   return out.filter((line) => line !== null).join('\n')
 }
 
+const NOTHING_TO_REVIEW =
+  'Nothing to review: `i18n check` finds no problems in the translations that exist.\n' +
+  'Untranslated strings are `i18n translate`, not review.\n'
+
+/**
+ * What `check` says is wrong with the translations that exist, keyed for the planner.
+ *
+ * Review works from the checker's own output so the two can never disagree
+ * about what is wrong with a locale. Shared by `review` and by `handoff
+ * --review`, because a second copy of this filtering would eventually review a
+ * different set of strings than it reported.
+ */
+function reviewFindings({ project, loadFindings, locales }) {
+  const findingsByKey = new Map()
+  const report = check(project, { loadFindings })
+
+  for (const finding of report.findings) {
+    if (!finding.key || !finding.locale || finding.severity === 'info') continue
+    if (locales && !locales.includes(finding.locale)) continue
+    // A string that has never been translated is not a fault in the existing
+    // translation; it is the absence of one. `translate` fills those. Review is
+    // for what is there and wrong, which is a different decision about how to
+    // spend money.
+    if (ABSENCE_CODES.has(finding.code)) continue
+    // Keyed by locale as well as key. Without the locale, a broken Russian
+    // string would queue the same key in German, which is correct there and
+    // would be paid for anyway.
+    const id = `${finding.locale}/${finding.namespace ?? 'app'}/${finding.key}`
+    findingsByKey.set(id, [...(findingsByKey.get(id) ?? []), finding])
+  }
+
+  return findingsByKey
+}
+
 async function cmdTranslate(options, positionals, { onlyWithFindings = false } = {}) {
   const translate = await loadTranslate()
   const { config, project, loadFindings } = open(options)
@@ -551,28 +594,9 @@ async function cmdTranslate(options, positionals, { onlyWithFindings = false } =
 
   let findingsByKey = new Map()
   if (onlyWithFindings) {
-    // Review works from the checker's own output, so the two can never
-    // disagree about what is wrong with a locale.
-    const report = check(project, { loadFindings })
-    for (const finding of report.findings) {
-      if (!finding.key || !finding.locale || finding.severity === 'info') continue
-      if (opts.locales && !opts.locales.includes(finding.locale)) continue
-      // A string that has never been translated is not a fault in the existing
-      // translation; it is the absence of one. `translate` fills those. Review
-      // is for what is there and wrong, which is a different decision about
-      // how to spend money.
-      if (ABSENCE_CODES.has(finding.code)) continue
-      // Keyed by locale as well as key. Without the locale, a broken Russian
-      // string would queue the same key in German, which is correct there and
-      // would be paid for anyway.
-      const id = `${finding.locale}/${finding.namespace ?? 'app'}/${finding.key}`
-      findingsByKey.set(id, [...(findingsByKey.get(id) ?? []), finding])
-    }
+    findingsByKey = reviewFindings({ project, loadFindings, locales: opts.locales })
     if (findingsByKey.size === 0) {
-      process.stdout.write(
-        'Nothing to review: `i18n check` finds no problems in the translations that exist.\n' +
-          'Untranslated strings are `i18n translate`, not review.\n',
-      )
+      process.stdout.write(NOTHING_TO_REVIEW)
       return
     }
   }
@@ -675,11 +699,156 @@ function cmdRetranslate(options) {
 
 // --- entry point ------------------------------------------------------------
 
+/**
+ * Translate with no provider and no API key, using whatever agent is driving this.
+ *
+ * `handoff` writes the brief; the agent fills in the answer files; `ingest`
+ * validates them and writes what passes. The validation is the same code the
+ * paid path runs, so an agent's Russian plural is held to the same standard as
+ * a provider's.
+ */
+async function cmdHandoff(options) {
+  const translate = await loadTranslate()
+  const { config, project, loadFindings } = open(options)
+  const opts = translateOptions(options)
+  const onlyWithFindings = Boolean(options.review)
+
+  let findingsByKey = new Map()
+  if (onlyWithFindings) {
+    findingsByKey = reviewFindings({ project, loadFindings, locales: opts.locales })
+    if (findingsByKey.size === 0) {
+      process.stdout.write(NOTHING_TO_REVIEW)
+      return
+    }
+  }
+
+  const dir = options.dir ? resolve(options.cwd ?? process.cwd(), options.dir) : config.paths.handoff
+  const result = translate.writeHandoff({
+    project,
+    config,
+    dir,
+    options: { ...opts, onlyWithFindings, findingsByKey },
+  })
+
+  // Translation memory is applied during handoff, exactly as the engine applies
+  // it, so those strings are already in the catalog and must be saved.
+  if (result.reused.length) project.save()
+
+  const out = []
+  let total = 0
+  for (const locale of result.locales) {
+    total += locale.items
+    if (locale.items === 0) {
+      out.push(`${locale.locale}: nothing to translate`)
+      continue
+    }
+    out.push(`${locale.locale}: ${locale.items} string(s) in ${locale.batches.length} batch(es) → ${locale.dir}`)
+  }
+  if (result.reused.length) out.push(`reused ${result.reused.length} string(s) from translation memory, at no cost`)
+  for (const row of result.skipped) out.push(`skipped  ${row.locale} ${row.key}: ${row.reason}`)
+
+  if (total === 0) {
+    out.push('', 'Nothing to hand off. Every target locale is current.')
+  } else {
+    out.push(
+      '',
+      'Read each batch brief, fill in the matching .answers.json, then:',
+      `  i18n ingest --locale ${result.locales.find((l) => l.items > 0).locale}`,
+      '',
+      'No API key and no provider spend: the translating is done by whatever agent reads the brief.',
+    )
+  }
+
+  process.stdout.write(`${out.join('\n')}\n`)
+}
+
+async function cmdIngest(options) {
+  const translate = await loadTranslate()
+  const { config, project, loadFindings } = open(options)
+  const opts = translateOptions(options)
+
+  const locales = opts.locales ?? (options.locale ? [options.locale] : config.targetLocales())
+  const dir = options.dir ? resolve(options.cwd ?? process.cwd(), options.dir) : config.paths.handoff
+  const onlyWithFindings = Boolean(options.review)
+
+  const findingsByKey = onlyWithFindings
+    ? reviewFindings({ project, loadFindings, locales })
+    : new Map()
+
+  const out = []
+  let accepted = 0
+  let rejected = 0
+  let wrote = false
+
+  for (const locale of locales) {
+    const result = translate.ingestAnswers({
+      project,
+      config,
+      locale,
+      dir,
+      model: options.model ?? 'agent',
+      options: { onlyWithFindings, findingsByKey },
+    })
+
+    if (result.error) {
+      out.push(`${locale}: ${result.error}`)
+      continue
+    }
+
+    accepted += result.accepted.length
+    rejected += result.rejected.length
+    if (result.accepted.length) wrote = true
+
+    const parts = [`${result.accepted.length} accepted`, `${result.rejected.length} rejected`]
+    if (result.done.length) parts.push(`${result.done.length} already done`)
+    if (result.blank.length) parts.push(`${result.blank.length} left blank`)
+    if (result.stale.length) parts.push(`${result.stale.length} stale`)
+    out.push(`${locale}: ${parts.join(', ')} (${result.files} file(s) read)`)
+
+    for (const row of result.accepted) {
+      const flags = row.advisory.map((a) => a.code).join(', ')
+      if (flags) out.push(`  ok       ${row.key} [${flags}]`)
+    }
+    for (const row of result.rejected) {
+      out.push(`  REJECT   ${row.key}${row.codes ? ` (${row.codes.join(', ')})` : ''}`)
+      out.push(`           ${row.correction.replace(/\s+/g, ' ').trim()}`)
+    }
+    for (const row of result.blank) out.push(`  blank    ${row.key}: no translation given, left missing`)
+    for (const row of result.dropped) out.push(`  note     ${row.key}: ${row.reason}`)
+    for (const row of result.stale) out.push(`  stale    ${row.key}: ${row.reason}`)
+    if (result.notes.length) {
+      out.push('  notes worth a read before shipping:')
+      for (const row of result.notes) out.push(`    ${row.key}: ${row.note}`)
+    }
+  }
+
+  if (wrote) {
+    const written = project.save()
+    out.push('', `Wrote ${written.length} catalog file(s).`)
+  }
+
+  if (rejected > 0) {
+    out.push(
+      '',
+      `${rejected} answer(s) did not pass validation and were NOT written.`,
+      'Each one above says exactly what is wrong. Fix those entries in the .answers.json',
+      'files and run `i18n ingest` again. Nothing else needs redoing.',
+    )
+  } else if (accepted > 0) {
+    out.push('', 'Run `i18n check` and then `i18n export`.')
+  }
+
+  process.stdout.write(`${out.join('\n')}\n`)
+  if (rejected > 0) process.exitCode = 1
+}
+
 const COMMANDS = {
   init: cmdInit,
   import: cmdImport,
   check: cmdCheck,
   translate: cmdTranslate,
+  handoff: cmdHandoff,
+  ingest: cmdIngest,
   review: cmdReview,
   sync: cmdSync,
   retranslate: cmdRetranslate,
@@ -722,6 +891,8 @@ function main(argv) {
       'max-attempts': { type: 'string' },
       model: { type: 'string' },
       provider: { type: 'string' },
+      dir: { type: 'string' },
+      review: { type: 'boolean' },
       yes: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },

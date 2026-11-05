@@ -7,7 +7,8 @@
  * never the reverse.
  */
 
-export { translateProject, SpendLimitReached } from './engine.mjs'
+export { translateProject, SpendLimitReached, readStyleGuide } from './engine.mjs'
+export { writeHandoff, ingestAnswers, PROMPT_VERSION, HANDOFF_DIR } from './handoff.mjs'
 export { planLocale, batchItems, precedentFor } from './plan.mjs'
 export { validateCandidate, correctionFor } from './validate.mjs'
 export { systemPrompt, batchPrompt } from './prompt.mjs'

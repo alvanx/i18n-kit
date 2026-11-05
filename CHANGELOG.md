@@ -10,6 +10,27 @@ Phase 1: the core package. Nothing is published to npm yet.
 
 ### Added
 
+- **Translating with no API key**, which is now the default route. `i18n handoff`
+  writes the brief a provider would have received, one file per screen, carrying
+  the comment, placeholder meanings, nearby settled wording, glossary, style
+  guide, and the CLDR plural categories the target language needs. A coding
+  agent already working in the repo fills in the answer files. `i18n ingest`
+  then validates every answer through the same `validateCandidate` the paid
+  engine uses and writes only what passes, reporting each rejection with the
+  correction to make.
+
+  The point is that the free route is not the lenient route: a Russian plural
+  written with English's two branches is rejected whoever wrote it. Provisioning
+  a second, separately billed credential to reach the same model was a cost with
+  nothing on the other side of it.
+
+  Translation memory is applied during `handoff`, so a string whose text is
+  already settled elsewhere is never handed to an agent for a second opinion.
+  Re-ingesting after a correction reports the already-accepted strings as done
+  rather than as stale. `--review` queues only what `check` found wrong.
+  `paths.handoff` says where the briefs live, and they are safe to gitignore.
+
+
 - **A Claude Code skill**, in `skill/localize/`. Symlink it into
   `~/.claude/skills/` once and every project on the machine can be localized by
   asking for the outcome instead of a command. It carries the first-run
@@ -23,6 +44,15 @@ Phase 1: the core package. Nothing is published to npm yet.
 
 ### Fixed
 
+- `check` rendered a translation note as `undefined: undefined` whenever the
+  note was a bare string rather than the `{kind, text}` the schema describes.
+  The catalog is a file people and other tools write, so the one thing the note
+  existed to say was exactly what got lost.
+- The `provenance` schema required a `promptVersion` no writer has ever
+  produced, and forbade the `kind` and `attempt` that every writer does. It now
+  describes the three shapes the code actually writes, discriminated on `kind`:
+  `provider` for a paid call, `agent` for a handoff answer, and `memory` for a
+  reused string.
 - The `$schema` and `$id` URLs that `init` wrote into every scaffolded config
   pointed at a repository that does not exist. They now point at the real one,
   so an editor can actually fetch the schema and complete the config.

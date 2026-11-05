@@ -75,6 +75,11 @@
           "type": "string",
           "default": "i18n/audit.log"
         },
+        "handoff": {
+          "type": "string",
+          "default": "i18n/handoff",
+          "description": "Where `i18n handoff` writes translation briefs for an agent to fill in, and where `i18n ingest` reads the answers back. Working files rather than a deliverable, so they are safe to gitignore."
+        },
         "out": {
           "type": "string",
           "default": "build/i18n"

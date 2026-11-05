@@ -4,9 +4,11 @@ Point it at a codebase that already ships, and get a new language out of it.
 
 > **Status: in development.** Nothing is published to npm yet. See [what works today](#what-works-today).
 
-Most localization tooling asks you to choose between a hosted platform that owns your strings and a per-framework library that covers one platform. i18n-kit is neither. It reads the string files your project already has, fills the gaps with a translation provider of your choosing, checks every result mechanically, and writes the native files back.
+Most localization tooling asks you to choose between a hosted platform that owns your strings and a per-framework library that covers one platform. i18n-kit is neither. It reads the string files your project already has, fills the gaps, checks every result mechanically, and writes the native files back.
 
 The thing it will not do is quietly ship a translation it cannot verify.
+
+**You do not need an API key.** The default path assumes a capable model is already reading this repo, because one usually is. `i18n handoff` writes the brief, your coding agent translates it, and `i18n ingest` validates every answer and rejects the ones that are wrong. Nothing is billed twice. A paid provider path exists for unattended bulk runs, and it passes through exactly the same validator.
 
 ## Why those two problems
 
@@ -82,11 +84,29 @@ npx i18n import
 npx i18n check
 ```
 
+Then hand the gaps to whatever agent is already working in the repo:
+
 ```bash
-npx i18n translate --dry-run
+npx i18n handoff --locales de
 ```
 
-`--dry-run` prices the run before it costs anything, and works with no credentials at all — estimating is what you do *before* setting a key up.
+That writes `i18n/handoff/de/`: one brief per screen, carrying the comment, the placeholder meanings, the wording already settled nearby, the glossary, your style guide, and the plural categories the language actually needs. The agent fills in the matching `.answers.json`, then:
+
+```bash
+npx i18n ingest --locale de
+```
+
+```
+de: 26 accepted, 2 rejected (2 file(s) read)
+  REJECT   chooser.held.to (PLACEHOLDER_MISMATCH)
+           dropped {device}
+  REJECT   chooser.multi (PLURAL_CATEGORY_MISSING)
+           ru requires one, few, many, other for {count}; missing few, many
+```
+
+Only what passed is written. The agent fixes those two entries, runs `ingest` again, and they land. No key, no spend, and the same validator a paid run goes through.
+
+For an unattended bulk run there is still a provider path. `npx i18n translate --dry-run` prices it with no credentials at all, because estimating is what you do *before* setting a key up:
 
 ```
 Would translate 114 string(s): 16,143 input tokens, roughly 5,381 output, about $0.17 on claude-opus-5-5.
@@ -102,7 +122,7 @@ There is a skill in [`skill/`](skill/) that drives all of this, so you can ask f
 ln -s "$PWD/skill/localize" ~/.claude/skills/localize
 ```
 
-Then, in any project: "add German to this app", "check our Russian", "is this localization any good?". The skill works out whether it is a first run or a routine one, picks the importer by looking at the files rather than at their names, reads the project's own formatter before declaring what it can render, prices every translation run before spending anything, and reports in plain language rather than rule codes.
+Then, in any project: "add German to this app", "check our Russian", "is this localization any good?". The agent does the translating itself through `handoff` and `ingest`, so there is no key to provision and no second bill. The skill works out whether it is a first run or a routine one, picks the importer by looking at the files rather than at their names, reads the project's own formatter before declaring what it can render, and reports in plain language rather than rule codes.
 
 ## A worked example
 
@@ -131,12 +151,14 @@ them on trust.
 | `add` `rename` `deprecate` `remove` | no | Key lifecycle. |
 | `touch` | no | Declare a source edit cosmetic, so it does not trigger retranslation. |
 | `normalize` | no | Re-canonicalize files after a manual merge. |
-| `translate` | yes | Fill gaps. Never overwrites human text. |
+| `handoff` | no | Write translation briefs for an agent already in the repo. No key, no spend. |
+| `ingest` | no | Validate that agent's answers and write only the ones that pass. |
+| `translate` | yes | Fill gaps with a paid provider. Never overwrites human text. |
 | `review` | yes | Fix what `check` found wrong in translations that already exist. |
 | `retranslate` | no | Record an audited request to replace a human translation. |
 | `sync` | yes | Import, check, translate, export. |
 
-Only `translate`, `review` and `sync` touch the network. That is why the check that everyone needs never requires the secret that only maintainers have, and why it runs on a pull request from a fork. The two workflow templates are split along the same line.
+Only `translate`, `review` and `sync` touch the network. Everything else, the whole `handoff` and `ingest` loop included, is local. That is why the check everyone needs never requires the secret only maintainers have, why it runs on a pull request from a fork, and why adding a language costs nothing when an agent is already working in the repo. The two workflow templates are split along the same line.
 
 ## Export targets
 
@@ -158,7 +180,7 @@ Argument positions always come from the **source** message, never the translatio
 
 ## What works today
 
-Built, tested, and exercised end to end on two real projects: the five importers, the catalog with its three-hash model, the check gate, the five export adapters, the translation engine with its validation-and-retry loop, review, the audited retranslate path, pseudo-locales, and the key lifecycle commands. 269 tests.
+Built, tested, and exercised end to end on two real projects: the five importers, the catalog with its three-hash model, the check gate, the five export adapters, the translation engine with its validation-and-retry loop, the keyless handoff/ingest path, review, the audited retranslate path, pseudo-locales, and the key lifecycle commands. 282 tests.
 
 There is also a Claude Code skill in [`skill/`](skill/) that drives the whole thing, including the first-run setup that is easy to get wrong.
 
@@ -188,7 +210,7 @@ Not built:
 - **No runtime formatter.** The catalogs and the generated files are real, but there is no `@i18n-kit/runtime` yet, so an app using sync mode keeps its own i18n library and reads the generated files as it always did. A project in adopt mode has files and no library to read them with.
 - **No string extraction from source code.** An importer reads a string *file*. It does not find hardcoded strings in Swift or TypeScript, and heuristics for that sweep up log lines and miss template literals. Moving them out is manual work.
 - **No review UI.** Corrections happen by editing a JSON file, which is fine for a developer and useless for a native speaker you want help from.
-- **Only one provider adapter.** The engine takes any object with `translateBatch` and `estimate`; Anthropic is the one that ships.
+- **Only one provider adapter** on the paid path. The engine takes any object with `translateBatch` and `estimate`; Anthropic is the one that ships. The keyless `handoff`/`ingest` path has no provider at all, so it is unaffected.
 - **No iOS or Android source-code extraction**, same reason as above: `.xcstrings` and `strings.xml` are read, Swift and Kotlin literals are not.
 
 ## What it does not check

@@ -352,7 +352,12 @@ function checkLocale(project, locale, { emit, glossary }) {
     }
 
     if (translation.note) {
-      emit('MODEL_NOTE', `${translation.note.kind}: ${translation.note.text}`, where)
+      // A note is `{kind, text}`, but the catalog is a file people and other
+      // tools write, so a bare string turns up. Rendering it as
+      // "undefined: undefined" loses the one thing the note was for.
+      const note = translation.note
+      const text = typeof note === 'string' ? note : note.text
+      emit('MODEL_NOTE', note.kind && text ? `${note.kind}: ${text}` : (text ?? JSON.stringify(note)), where)
     }
 
     for (const finding of translation.qa?.findings ?? []) {
